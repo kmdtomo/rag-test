@@ -13,6 +13,7 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'haiku'>('sonnet');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -54,6 +55,7 @@ export function ChatInterface() {
         },
         body: JSON.stringify({
           message: userMessage.content,
+          model: selectedModel,
         }),
       });
 
@@ -121,6 +123,33 @@ export function ChatInterface() {
           <div>
             <h3 className="text-sm font-medium text-gray-900">AI アシスタント</h3>
             <p className="text-xs text-gray-500">ドキュメントについて質問できます</p>
+          </div>
+        </div>
+        
+        {/* モデル選択 */}
+        <div className="flex items-center space-x-2 mt-3">
+          <span className="text-xs text-gray-600">モデル:</span>
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setSelectedModel('sonnet')}
+              className={`px-3 py-1 text-xs rounded-md transition-all ${
+                selectedModel === 'sonnet'
+                  ? 'bg-white text-blue-600 shadow-sm font-medium'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Claude 3.5 Sonnet
+            </button>
+            <button
+              onClick={() => setSelectedModel('haiku')}
+              className={`px-3 py-1 text-xs rounded-md transition-all ${
+                selectedModel === 'haiku'
+                  ? 'bg-white text-blue-600 shadow-sm font-medium'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Claude 3 Haiku
+            </button>
           </div>
         </div>
       </div>
