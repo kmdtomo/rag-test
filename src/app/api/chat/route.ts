@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       modelId: modelId,
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 512, // トークン数を大幅削減
+        max_tokens: 2048,
         temperature: 0,
         top_p: 1,
         messages: [
