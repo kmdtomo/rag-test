@@ -40,7 +40,7 @@ Please provide a detailed and well-structured answer based on the search results
 
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json();
+    const { message, model } = await request.json();
 
     if (!message) {
       return NextResponse.json(
@@ -92,14 +92,18 @@ export async function POST(request: NextRequest) {
       .replace('{question}', message);
 
     // Step 4: Claude に生成を依頼
-    // Claude 3.5 Sonnetを使用
-    const modelId = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
+    // モデル選択（デフォルトはClaude 3.5 Sonnet）
+    const modelMap = {
+      'haiku': 'anthropic.claude-3-haiku-20240307-v1:0',
+      'sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+    };
+    const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet'];
     
     const generateCommand = new InvokeModelCommand({
       modelId: modelId,
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 2048,
+        max_tokens: 512, // トークン数を大幅削減
         temperature: 0,
         top_p: 1,
         messages: [
