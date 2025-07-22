@@ -98,12 +98,13 @@ export async function POST(request: NextRequest) {
       'sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0'
     };
     const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet'];
+    //re
     
     const generateCommand = new InvokeModelCommand({
       modelId: modelId,
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 512, // トークン数を大幅削減
+        max_tokens: 2048,
         temperature: 0,
         top_p: 1,
         messages: [
