@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       'sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0'
     };
     const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet'];
-    
+    //re
     const generateCommand = new InvokeModelCommand({
       modelId: modelId,
       body: JSON.stringify({
