@@ -47,6 +47,24 @@ export async function DELETE(request: NextRequest) {
 
     await s3Client.send(command);
 
+    // ファイル削除後、Knowledge Baseに同期をトリガー
+    try {
+      console.log('Triggering Knowledge Base sync after file deletion:', fileKey);
+      const syncResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileKey: `deleted-${fileKey}` }),
+      });
+      
+      const syncData = await syncResponse.json();
+      console.log('Sync triggered after deletion:', syncData);
+    } catch (syncError) {
+      console.error('Sync trigger failed after deletion:', syncError);
+      // 同期エラーでもファイル削除は成功とする
+    }
+
     return NextResponse.json({
       success: true,
       message: 'File deleted successfully',

@@ -2,14 +2,63 @@
 
 import { useState, useRef, useEffect } from 'react';
 
+// メッセージ内の引用番号をリンクに変換するコンポーネント
+function MessageWithCitations({ 
+  content, 
+  sources, 
+  onCitationClick 
+}: { 
+  content: string; 
+  sources: Source[];
+  onCitationClick: (index: number) => void;
+}) {
+  // [1], [2]などのパターンをリンクに置換
+  const parts = content.split(/(\[\d+\])/g);
+  
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/\[(\d+)\]/);
+        if (match) {
+          const index = parseInt(match[1]) - 1;
+          if (index >= 0 && index < sources.length) {
+            return (
+              <button
+                key={i}
+                onClick={() => onCitationClick(index)}
+                className="inline-flex items-center justify-center px-1 py-0.5 mx-0.5 text-xs font-medium text-blue-600 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
+              >
+                [{index + 1}]
+              </button>
+            );
+          }
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
+
+interface Source {
+  content?: string;
+  location?: any;
+  uri?: string;
+  score?: number;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  sources?: Source[];
 }
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  onSourceClick?: (sources: Source[], index: number) => void;
+}
+
+export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -82,6 +131,7 @@ export function ChatInterface() {
           role: 'assistant',
           content: data.response,
           timestamp: new Date(),
+          sources: data.sources,
         };
         setMessages(prev => [...prev, assistantMessage]);
       }
@@ -192,8 +242,21 @@ export function ChatInterface() {
                     : 'bg-gray-50 text-gray-900 border border-gray-100 rounded-bl-md'
                 }`}>
                   <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {message.content}
+                    {message.role === 'assistant' && message.sources ? (
+                      <MessageWithCitations 
+                        content={message.content} 
+                        sources={message.sources}
+                        onCitationClick={(index) => {
+                          if (onSourceClick && message.sources) {
+                            onSourceClick(message.sources, index);
+                          }
+                        }}
+                      />
+                    ) : (
+                      message.content
+                    )}
                   </div>
+                  
                 </div>
                 <div className={`mt-1 px-1 text-xs text-gray-400 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
                   {formatTime(message.timestamp)}

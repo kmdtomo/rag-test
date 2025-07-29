@@ -30,13 +30,14 @@ Guidelines:
 - If multiple search results contain relevant information, synthesize them into a cohesive answer
 - Include references to the search results using [1], [2], etc.
 - If the search results don't contain enough information to fully answer the question, state what information is missing
+- Please answer in Japanese
 
 Here are the search results:
 {search_results}
 
 User Question: {question}
 
-Please provide a detailed and well-structured answer based on the search results above:`;
+Please provide a detailed and well-structured answer based on the search results above in Japanese:`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -87,9 +88,10 @@ export async function POST(request: NextRequest) {
     }).join('\n\n') || '';
 
     // Step 3: プロンプトを構築
-    const prompt = GENERATION_PROMPT_TEMPLATE
+    const finalPrompt = GENERATION_PROMPT_TEMPLATE
       .replace('{search_results}', searchResults)
       .replace('{question}', message);
+    
 
     // Step 4: Claude に生成を依頼
     // モデル選択（デフォルトはClaude 3.5 Sonnet）
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "user",
-            content: prompt
+            content: finalPrompt
           }
         ]
       })
