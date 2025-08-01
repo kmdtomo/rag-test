@@ -7,14 +7,20 @@ import { FileList } from '@/components/FileList';
 import { SourcePanel } from '@/components/SourcePanel';
 import NavigationHeader from '@/components/NavigationHeader';
 
+interface AgentChatViewProps {
+  agentId: string;
+}
+
 interface Source {
   content?: string;
   location?: any;
   uri?: string;
   score?: number;
+  type?: 'knowledge_base' | 'web_search';
+  title?: string;
 }
 
-export default function RagChatView() {
+export default function AgentChatView({ agentId }: AgentChatViewProps) {
   const [showSources, setShowSources] = useState(false);
   const [currentSources, setCurrentSources] = useState<Source[]>([]);
   const [selectedSourceIndex, setSelectedSourceIndex] = useState<number | null>(null);
@@ -24,6 +30,15 @@ export default function RagChatView() {
     setSelectedSourceIndex(index);
     setShowSources(true);
   };
+
+  const handleSourcesUpdate = (sources: Source[]) => {
+    if (sources && sources.length > 0) {
+      setCurrentSources(sources);
+      setSelectedSourceIndex(0);
+      setShowSources(true);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NavigationHeader />
@@ -58,7 +73,12 @@ export default function RagChatView() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 チャット
               </h2>
-              <ChatInterface onSourceClick={handleSourceClick} />
+              <ChatInterface 
+                onSourceClick={handleSourceClick}
+                onSourcesUpdate={handleSourcesUpdate}
+                apiEndpoint="/api/agent"
+                placeholder="エージェントに質問してください（Web検索、ナレッジベース検索が可能です）"
+              />
             </div>
           </div>
         </div>

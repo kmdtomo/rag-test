@@ -52,13 +52,17 @@ interface Message {
   content: string;
   timestamp: Date;
   sources?: Source[];
+  searchedUrls?: string[];
 }
 
 interface ChatInterfaceProps {
   onSourceClick?: (sources: Source[], index: number) => void;
+  onSourcesUpdate?: (sources: Source[]) => void;
+  apiEndpoint?: string;
+  placeholder?: string;
 }
 
-export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
+export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpoint = '/api/chat', placeholder = 'メッセージを入力...' }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -97,7 +101,7 @@ export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,6 +109,7 @@ export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
         body: JSON.stringify({
           message: userMessage.content,
           model: selectedModel,
+          sessionId: localStorage.getItem('sessionId') || undefined,
         }),
       });
 
@@ -132,8 +137,19 @@ export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
           content: data.response,
           timestamp: new Date(),
           sources: data.sources,
+          searchedUrls: data.searchedUrls,
         };
         setMessages(prev => [...prev, assistantMessage]);
+        
+        // セッションIDを保存
+        if (data.sessionId) {
+          localStorage.setItem('sessionId', data.sessionId);
+        }
+        
+        // ソース情報を親コンポーネントに通知
+        if (onSourcesUpdate && data.sources) {
+          onSourcesUpdate(data.sources);
+        }
       }
     } catch (error) {
       console.error('Chat error:', error);
@@ -161,7 +177,7 @@ export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-white rounded-xl shadow-sm border border-gray-200">
+    <div className="flex flex-col h-full bg-white shadow-lg">
       {/* チャットヘッダー */}
       <div className="px-6 py-4 border-b border-gray-100">
         <div className="flex items-center space-x-3">
@@ -258,6 +274,32 @@ export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
                   </div>
                   
                 </div>
+                
+                {/* Web検索URLの表示 */}
+                {message.role === 'assistant' && message.searchedUrls && message.searchedUrls.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="text-xs text-gray-600 mb-2">🔍 Web検索先：</div>
+                    <div className="space-y-1">
+                      {message.searchedUrls.map((url, index) => {
+                        const domain = new URL(url).hostname.replace('www.', '');
+                        return (
+                          <a
+                            key={index}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            {domain}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className={`mt-1 px-1 text-xs text-gray-400 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
                   {formatTime(message.timestamp)}
                 </div>
@@ -299,7 +341,7 @@ export function ChatInterface({ onSourceClick }: ChatInterfaceProps) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="メッセージを入力..."
+                placeholder={placeholder}
                 className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 pr-12 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 rows={1}
                 disabled={isLoading}

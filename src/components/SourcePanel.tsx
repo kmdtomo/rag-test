@@ -5,6 +5,8 @@ interface Source {
   location?: any;
   uri?: string;
   score?: number;
+  type?: 'knowledge_base' | 'web_search';
+  title?: string;
 }
 
 interface SourcePanelProps {
@@ -40,18 +42,45 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-sm font-medium">
+                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-sm font-medium ${
+                  source.type === 'web_search' 
+                    ? 'bg-green-100 text-green-600' 
+                    : 'bg-blue-100 text-blue-600'
+                }`}>
                   {index + 1}
                 </span>
-                <h3 className="text-sm font-medium text-gray-900">
-                  {source.uri ? source.uri.split('/').pop() || 'ファイル名不明' : 'ソース情報なし'}
-                </h3>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-900">
+                    {source.title || (source.uri ? source.uri.split('/').pop() || 'ファイル名不明' : 'ソース情報なし')}
+                  </h3>
+                  {source.uri && source.type === 'web_search' && (
+                    <a 
+                      href={source.uri} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {source.uri}
+                    </a>
+                  )}
+                </div>
               </div>
-              {source.score && (
-                <span className="text-xs text-gray-500">
-                  スコア: {source.score.toFixed(3)}
-                </span>
-              )}
+              <div className="flex flex-col items-end space-y-1">
+                {source.type && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    source.type === 'web_search' 
+                      ? 'bg-green-50 text-green-700' 
+                      : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {source.type === 'web_search' ? 'Web検索' : 'ナレッジベース'}
+                  </span>
+                )}
+                {source.score && (
+                  <span className="text-xs text-gray-500">
+                    スコア: {source.score.toFixed(3)}
+                  </span>
+                )}
+              </div>
             </div>
             
             {source.content && (
