@@ -12,6 +12,7 @@
     "@aws-sdk/client-bedrock-agent": "^3.848.0",
     "@aws-sdk/client-bedrock-agent-runtime": "^3.848.0",
     "@aws-sdk/client-bedrock-runtime": "^3.848.0",
+    "@aws-sdk/client-lambda": "^3.863.0",
     "@aws-sdk/client-s3": "^3.850.0",
     "@aws-sdk/s3-request-presigner": "^3.850.0",
     "multer": "^2.0.2",
