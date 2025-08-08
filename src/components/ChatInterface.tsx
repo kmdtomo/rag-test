@@ -71,6 +71,7 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'sonnet' | 'haiku'>('sonnet');
+  const [selectedApi, setSelectedApi] = useState<'chat' | 'rag-optimized' | 'rag-integrated'>('rag-optimized');
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [currentSearchResult, setCurrentSearchResult] = useState<SearchResult | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -123,16 +124,42 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
     }
 
     try {
+      // エンドポイントとリクエストボディを動的に決定
+      let apiEndpoint: string;
+      let requestBody: any;
+
+      if (isAgentChat) {
+        // Web検索エージェントの場合
+        apiEndpoint = '/api/agent-direct';
+        requestBody = {
+          message: userMessage.content,
+          model: selectedModel,
+          sessionId: localStorage.getItem('sessionId') || undefined,
+        };
+      } else {
+        // RAG APIの場合
+        apiEndpoint = `/api/${selectedApi}`;
+        console.log('Selected API:', selectedApi, 'Endpoint:', apiEndpoint); // デバッグ用
+        requestBody = {
+          message: userMessage.content,
+          model: selectedModel,
+        };
+
+        // API固有のパラメータを追加
+        if (selectedApi === 'rag-optimized') {
+          requestBody.enableOptimizations = true;
+        } else if (selectedApi === 'rag-integrated') {
+          requestBody.useSession = false;  // セッション機能を一時的に無効化
+          requestBody.userId = 'default-user'; // 実際の実装では適切なユーザーIDを使用
+        }
+      }
+
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: userMessage.content,
-          model: selectedModel,
-          sessionId: localStorage.getItem('sessionId') || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -244,12 +271,59 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
           </div>
           <div>
             <h3 className="text-sm font-medium text-gray-900">AI アシスタント</h3>
-            <p className="text-xs text-gray-500">ドキュメントについて質問できます</p>
+            <p className="text-xs text-gray-500">
+              {isAgentChat 
+                ? 'リアルタイム情報をWeb検索して回答します' 
+                : 'ドキュメントについて質問できます'
+              }
+            </p>
           </div>
         </div>
         
+        {/* API選択（RAGチャットの場合のみ表示） */}
+        {!isAgentChat && (
+          <div className="flex items-center space-x-2 mt-3">
+            <span className="text-xs text-gray-600">API:</span>
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setSelectedApi('chat')}
+                className={`px-2 py-1 text-xs rounded-md transition-all ${
+                  selectedApi === 'chat'
+                    ? 'bg-white text-blue-600 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+                title="基本的なRAG API"
+              >
+                基本
+              </button>
+              <button
+                onClick={() => setSelectedApi('rag-optimized')}
+                className={`px-2 py-1 text-xs rounded-md transition-all ${
+                  selectedApi === 'rag-optimized'
+                    ? 'bg-white text-blue-600 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+                title="クエリ分解・再ランキング最適化"
+              >
+                最適化
+              </button>
+              <button
+                onClick={() => setSelectedApi('rag-integrated')}
+                className={`px-2 py-1 text-xs rounded-md transition-all ${
+                  selectedApi === 'rag-integrated'
+                    ? 'bg-white text-blue-600 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+                title="統合API・セッション管理"
+              >
+                統合
+              </button>
+            </div>
+          </div>
+        )}
+        
         {/* モデル選択 */}
-        <div className="flex items-center space-x-2 mt-3">
+        <div className="flex items-center space-x-2 mt-2">
           <span className="text-xs text-gray-600">モデル:</span>
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
@@ -274,6 +348,22 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
             </button>
           </div>
         </div>
+        
+        {/* API説明 */}
+        <div className="mt-2 px-1">
+          <p className="text-xs text-gray-500">
+            {isAgentChat 
+              ? 'Web検索エージェント: リアルタイム情報を並列検索'
+              : (
+                <>
+                  {selectedApi === 'chat' && '基本RAG: シンプルな検索と生成'}
+                  {selectedApi === 'rag-optimized' && '最適化RAG: クエリ分解・ハイブリッド検索・再ランキング'}
+                  {selectedApi === 'rag-integrated' && '統合RAG: RetrieveAndGenerate・セッション管理'}
+                </>
+              )
+            }
+          </p>
+        </div>
       </div>
 
       {/* メッセージエリア */}
@@ -287,8 +377,17 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
                 </svg>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed">
-                アップロードしたドキュメントについて<br />
-                何でも質問してください
+                {isAgentChat ? (
+                  <>
+                    リアルタイム情報について<br />
+                    何でも質問してください
+                  </>
+                ) : (
+                  <>
+                    アップロードしたドキュメントについて<br />
+                    何でも質問してください
+                  </>
+                )}
               </p>
             </div>
           </div>
