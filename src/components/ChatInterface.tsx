@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import RealTimeSearchDisplay from './RealTimeSearchDisplay';
+import { SearchResult } from '@/types/agent';
 
 // メッセージ内の引用番号をリンクに変換するコンポーネント
 function MessageWithCitations({ 
@@ -53,6 +55,7 @@ interface Message {
   timestamp: Date;
   sources?: Source[];
   searchedUrls?: string[];
+  searchResult?: SearchResult;
 }
 
 interface ChatInterfaceProps {
@@ -60,13 +63,16 @@ interface ChatInterfaceProps {
   onSourcesUpdate?: (sources: Source[]) => void;
   apiEndpoint?: string;
   placeholder?: string;
+  isAgentChat?: boolean; // agentチャットかどうかを判定
 }
 
-export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpoint = '/api/chat', placeholder = 'メッセージを入力...' }: ChatInterfaceProps) {
+export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpoint = '/api/chat', placeholder = 'メッセージを入力...', isAgentChat = false }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'sonnet' | 'haiku'>('sonnet');
+  const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
+  const [currentSearchResult, setCurrentSearchResult] = useState<SearchResult | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -99,6 +105,22 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setCurrentSearchQuery(userMessage.content);
+    setCurrentSearchResult(undefined);
+    
+    // Agentチャットの場合、すぐに検索開始をシミュレート
+    if (isAgentChat) {
+      // 1秒後に検索開始をシミュレート
+      setTimeout(() => {
+        setCurrentSearchResult({
+          type: 'search_results',
+          query: userMessage.content,
+          search_performed: true,
+          urls: [],
+          sources: []
+        } as SearchResult);
+      }, 1000);
+    }
 
     try {
       const response = await fetch(apiEndpoint, {
@@ -138,8 +160,42 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
           timestamp: new Date(),
           sources: data.sources,
           searchedUrls: data.searchedUrls,
+          searchResult: data.searchResult,
         };
         setMessages(prev => [...prev, assistantMessage]);
+        
+        // 検索結果を更新
+        if (data.searchResult) {
+          // URLを順番に表示するための処理
+          const fullResult = data.searchResult;
+          if (fullResult.urls && fullResult.urls.length > 0) {
+            // まず空の結果を設定
+            const emptyResult = {
+              ...fullResult,
+              urls: [],
+              sources: []
+            };
+            setCurrentSearchResult(emptyResult);
+            
+            // URLを順番に追加
+            fullResult.urls.forEach((url: string, index: number) => {
+              setTimeout(() => {
+                setCurrentSearchResult(prev => {
+                  if (!prev) return prev;
+                  const updatedUrls = [...(prev.urls || []), url];
+                  const updatedSources = fullResult.sources?.slice(0, index + 1) || [];
+                  return {
+                    ...prev,
+                    urls: updatedUrls,
+                    sources: updatedSources
+                  };
+                });
+              }, index * 300); // 0.3秒間隔でURLを追加
+            });
+          } else {
+            setCurrentSearchResult(fullResult);
+          }
+        }
         
         // セッションIDを保存
         if (data.sessionId) {
@@ -308,7 +364,17 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
           </div>
         ))}
 
-        {isLoading && (
+        {/* Agentチャットの場合は常にWeb検索ローディングを表示 */}
+        {isLoading && isAgentChat && (
+          <RealTimeSearchDisplay 
+            searchResult={currentSearchResult}
+            isSearching={true}
+            searchQuery={currentSearchQuery}
+          />
+        )}
+        
+        {/* RAGチャットの場合のみ「考え中」を表示 */}
+        {isLoading && !isAgentChat && (
           <div className="group">
             <div className="flex items-end space-x-3">
               <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-medium">

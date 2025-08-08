@@ -76,8 +76,9 @@ export default function AgentChatView({ agentId }: AgentChatViewProps) {
               <ChatInterface 
                 onSourceClick={handleSourceClick}
                 onSourcesUpdate={handleSourcesUpdate}
-                apiEndpoint="/api/agent"
+                apiEndpoint="/api/agent-direct"
                 placeholder="エージェントに質問してください（Web検索、ナレッジベース検索が可能です）"
+                isAgentChat={true}
               />
             </div>
           </div>
