@@ -15,6 +15,7 @@
     "@aws-sdk/client-lambda": "^3.863.0",
     "@aws-sdk/client-s3": "^3.850.0",
     "@aws-sdk/s3-request-presigner": "^3.850.0",
+    "lucide-react": "^0.539.0",
     "multer": "^2.0.2",
     "next": "15.4.2",
     "react": "19.1.0",
