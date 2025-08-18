@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FileUpload } from '@/components/FileUpload';
-import ChatInterface from '@/components/ChatInterface';
+import CompactChatInterface from '@/components/CompactChatInterface';
 import { FileList } from '@/components/FileList';
 import { SourcePanel } from '@/components/SourcePanel';
 import NavigationHeader from '@/components/NavigationHeader';
@@ -46,34 +46,37 @@ export default function AgentChatView({ agentId }: AgentChatViewProps) {
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {/* 左サイドバー - ファイル管理またはソース表示 */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1">
             {showSources ? (
-              <SourcePanel
-                sources={currentSources}
-                selectedSourceIndex={selectedSourceIndex}
-                onClose={() => {
-                  setShowSources(false);
-                  setSelectedSourceIndex(null);
-                }}
-              />
+              <div className="bg-white rounded-lg shadow-sm h-[calc(100vh-120px)] overflow-hidden">
+                <SourcePanel
+                  sources={currentSources}
+                  selectedSourceIndex={selectedSourceIndex}
+                  onClose={() => {
+                    setShowSources(false);
+                    setSelectedSourceIndex(null);
+                  }}
+                />
+              </div>
             ) : (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  ドキュメントアップロード
-                </h2>
-                <FileUpload />
-                <FileList />
+              <div className="bg-white rounded-lg shadow-sm h-[calc(100vh-120px)] flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    ドキュメントアップロード
+                  </h2>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  <FileUpload />
+                  <FileList />
+                </div>
               </div>
             )}
           </div>
 
           {/* メインエリア - チャット */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                チャット
-              </h2>
-              <ChatInterface 
+            <div className="bg-white rounded-lg shadow-sm h-[calc(100vh-120px)]">
+              <CompactChatInterface 
                 onSourceClick={handleSourceClick}
                 onSourcesUpdate={handleSourcesUpdate}
                 apiEndpoint="/api/agent-direct"
