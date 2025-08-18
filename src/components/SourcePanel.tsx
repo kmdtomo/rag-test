@@ -50,7 +50,7 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
         {sources.map((source, index) => (
           <div
             key={index}
-            ref={el => sourceRefs.current[index] = el}
+            ref={el => { sourceRefs.current[index] = el; }}
             id={`source-${index}`}
             className={`border rounded-lg p-4 transition-all ${
               selectedSourceIndex === index 
