@@ -31,12 +31,20 @@ Key Instructions:
 5. COMPREHENSIVENESS: Provide thorough answers while maintaining clarity
 6. LANGUAGE: Respond in Japanese
 
+IMPORTANT - Format your response using Markdown:
+- Use ## for main sections, ### for subsections
+- Use **bold** for key terms and important findings
+- Use - or * for bullet points, 1. 2. 3. for numbered lists
+- Use > for quotes or important notes
+- Use \`code\` for technical terms and \`\`\`language for code blocks
+- Use tables when comparing data or presenting structured information
+
 Search Results (ordered by relevance):
 {search_results}
 
 User Question: {question}
 
-Provide a well-structured, comprehensive answer in Japanese:`;
+Provide a well-structured, comprehensive answer in Japanese using Markdown formatting:`;
 
 // クエリ分解用のプロンプト
 const QUERY_DECOMPOSITION_PROMPT = `Given the following user question, decompose it into simpler sub-questions that can be searched independently. 
@@ -213,10 +221,10 @@ export async function POST(request: NextRequest) {
 
     // Step 7: Claude に生成を依頼
     const modelMap = {
-      'haiku': 'anthropic.claude-3-haiku-20240307-v1:0',
-      'sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+      'sonnet35': process.env.BEDROCK_MODEL_ID_SONNET_35 || 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      'sonnet4': process.env.BEDROCK_MODEL_ID_SONNET_4 || 'apac.anthropic.claude-sonnet-4-20250514-v1:0'
     };
-    const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet'];
+    const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet35'];
     
     const generateCommand = new InvokeModelCommand({
       modelId: modelId,

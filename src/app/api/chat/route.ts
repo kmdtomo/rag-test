@@ -32,12 +32,20 @@ Guidelines:
 - If the search results don't contain enough information to fully answer the question, state what information is missing
 - Please answer in Japanese
 
+IMPORTANT - Format your response using Markdown:
+- Use ## for main headings, ### for subheadings
+- Use **bold** for emphasis on important points
+- Use - or * for bullet points, 1. 2. 3. for numbered lists
+- Use > for quotes or important notes
+- Use \`code\` for inline technical terms and \`\`\`language for code blocks
+- Use tables when presenting comparative data
+
 Here are the search results:
 {search_results}
 
 User Question: {question}
 
-Please provide a detailed and well-structured answer based on the search results above in Japanese:`;
+Please provide a detailed and well-structured answer based on the search results above in Japanese using Markdown formatting:`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -96,10 +104,10 @@ export async function POST(request: NextRequest) {
     // Step 4: Claude に生成を依頼
     // モデル選択（デフォルトはClaude 3.5 Sonnet）
     const modelMap = {
-      'haiku': 'anthropic.claude-3-haiku-20240307-v1:0',
-      'sonnet': 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+      'sonnet35': process.env.BEDROCK_MODEL_ID_SONNET_35 || 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      'sonnet4': process.env.BEDROCK_MODEL_ID_SONNET_4 || 'apac.anthropic.claude-sonnet-4-20250514-v1:0'
     };
-    const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet'];
+    const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet35'];
     //re
     
     const generateCommand = new InvokeModelCommand({

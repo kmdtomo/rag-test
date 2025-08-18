@@ -1,0 +1,127 @@
+/* Markdownコンテンツ用のスタイル */
+.markdown-content {
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+/* コードブロックのシンタックスハイライト風 */
+.markdown-content pre code {
+  display: block;
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* インラインコード */
+.markdown-content code {
+  background: #f3f4f6;
+  color: #dc2626;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* リスト項目の改善 */
+.markdown-content ul li::marker {
+  color: #6b7280;
+}
+
+.markdown-content ol li::marker {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+/* テーブルのスタイル改善 */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.markdown-content th {
+  background: #f9fafb;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+
+.markdown-content td {
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+
+.markdown-content tbody tr:hover {
+  background: #f9fafb;
+}
+
+/* 引用のスタイル */
+.markdown-content blockquote {
+  border-left: 4px solid #3b82f6;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #4b5563;
+  background: #f9fafb;
+  padding: 0.75rem 1rem;
+  border-radius: 0.25rem;
+}
+
+/* 見出しの改善 */
+.markdown-content h1 {
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+  color: #111827;
+}
+
+.markdown-content h2 {
+  color: #1f2937;
+  margin-top: 1.5rem;
+}
+
+.markdown-content h3 {
+  color: #374151;
+  margin-top: 1rem;
+}
+
+/* リンクのスタイル */
+.markdown-content a {
+  color: #2563eb;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.markdown-content a:hover {
+  color: #1d4ed8;
+}
+
+/* 水平線 */
+.markdown-content hr {
+  border: none;
+  border-top: 2px solid #e5e7eb;
+  margin: 1.5rem 0;
+}
+
+/* 画像 */
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+/* チェックリスト */
+.markdown-content input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+/* 強調表示 */
+.markdown-content mark {
+  background: #fef3c7;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.125rem;
+}

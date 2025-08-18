@@ -3,43 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import RealTimeSearchDisplay from './RealTimeSearchDisplay';
 import { SearchResult } from '@/types/agent';
+import MarkdownRenderer from './MarkdownRenderer';
 
-// メッセージ内の引用番号をリンクに変換するコンポーネント
-function MessageWithCitations({ 
-  content, 
-  sources, 
-  onCitationClick 
-}: { 
-  content: string; 
-  sources: Source[];
-  onCitationClick: (index: number) => void;
-}) {
-  // [1], [2]などのパターンをリンクに置換
-  const parts = content.split(/(\[\d+\])/g);
-  
-  return (
-    <>
-      {parts.map((part, i) => {
-        const match = part.match(/\[(\d+)\]/);
-        if (match) {
-          const index = parseInt(match[1]) - 1;
-          if (index >= 0 && index < sources.length) {
-            return (
-              <button
-                key={i}
-                onClick={() => onCitationClick(index)}
-                className="inline-flex items-center justify-center px-1 py-0.5 mx-0.5 text-xs font-medium text-blue-600 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
-              >
-                [{index + 1}]
-              </button>
-            );
-          }
-        }
-        return <span key={i}>{part}</span>;
-      })}
-    </>
-  );
-}
 
 interface Source {
   content?: string;
@@ -70,7 +35,7 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'haiku'>('sonnet');
+  const [selectedModel, setSelectedModel] = useState<'sonnet35' | 'sonnet4'>('sonnet35');
   const [selectedApi, setSelectedApi] = useState<'chat' | 'rag-optimized' | 'rag-integrated'>('rag-optimized');
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [currentSearchResult, setCurrentSearchResult] = useState<SearchResult | undefined>(undefined);
@@ -327,9 +292,9 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
           <span className="text-xs text-gray-600">モデル:</span>
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
-              onClick={() => setSelectedModel('sonnet')}
+              onClick={() => setSelectedModel('sonnet35')}
               className={`px-3 py-1 text-xs rounded-md transition-all ${
-                selectedModel === 'sonnet'
+                selectedModel === 'sonnet35'
                   ? 'bg-white text-blue-600 shadow-sm font-medium'
                   : 'text-gray-600 hover:text-gray-800'
               }`}
@@ -337,14 +302,14 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
               Claude 3.5 Sonnet
             </button>
             <button
-              onClick={() => setSelectedModel('haiku')}
+              onClick={() => setSelectedModel('sonnet4')}
               className={`px-3 py-1 text-xs rounded-md transition-all ${
-                selectedModel === 'haiku'
+                selectedModel === 'sonnet4'
                   ? 'bg-white text-blue-600 shadow-sm font-medium'
                   : 'text-gray-600 hover:text-gray-800'
               }`}
             >
-              Claude 3 Haiku
+              Claude Sonnet 4
             </button>
           </div>
         </div>
@@ -412,10 +377,10 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
                     ? 'bg-blue-500 text-white rounded-br-md'
                     : 'bg-gray-50 text-gray-900 border border-gray-100 rounded-bl-md'
                 }`}>
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {message.role === 'assistant' && message.sources ? (
-                      <MessageWithCitations 
-                        content={message.content} 
+                  {message.role === 'assistant' ? (
+                    <div className="prose prose-sm max-w-none markdown-content text-sm">
+                      <MarkdownRenderer 
+                        content={message.content}
                         sources={message.sources}
                         onCitationClick={(index) => {
                           if (onSourceClick && message.sources) {
@@ -423,10 +388,12 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
                           }
                         }}
                       />
-                    ) : (
-                      message.content
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                      {message.content}
+                    </div>
+                  )}
                   
                 </div>
                 

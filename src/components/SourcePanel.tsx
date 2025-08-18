@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 interface Source {
   content?: string;
   location?: any;
@@ -7,6 +9,9 @@ interface Source {
   score?: number;
   type?: 'knowledge_base' | 'web_search';
   title?: string;
+  citationNumber?: number;
+  pageNumber?: number;
+  metadata?: any;
 }
 
 interface SourcePanelProps {
@@ -16,6 +21,17 @@ interface SourcePanelProps {
 }
 
 export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePanelProps) {
+  const sourceRefs = useRef<(HTMLDivElement | null)[]>([]);
+  
+  // 選択されたソースにスクロール
+  useEffect(() => {
+    if (selectedSourceIndex !== null && sourceRefs.current[selectedSourceIndex]) {
+      sourceRefs.current[selectedSourceIndex]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [selectedSourceIndex]);
   return (
     <div className="h-full bg-white rounded-lg shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
@@ -30,13 +46,15 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
         </button>
       </div>
 
-      <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+      <div className="space-y-4 overflow-y-auto" style={{ height: 'calc(100vh - 250px)' }}>
         {sources.map((source, index) => (
           <div
             key={index}
+            ref={el => sourceRefs.current[index] = el}
+            id={`source-${index}`}
             className={`border rounded-lg p-4 transition-all ${
               selectedSourceIndex === index 
-                ? 'border-blue-500 bg-blue-50' 
+                ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -47,12 +65,15 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
                     ? 'bg-green-100 text-green-600' 
                     : 'bg-blue-100 text-blue-600'
                 }`}>
-                  {index + 1}
+                  {source.citationNumber || index + 1}
                 </span>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-medium text-gray-900 truncate">
                     {source.title || (source.uri ? source.uri.split('/').pop() || 'ファイル名不明' : 'ソース情報なし')}
                   </h3>
+                  {source.pageNumber && (
+                    <p className="text-xs text-gray-500">ページ: {source.pageNumber}</p>
+                  )}
                   {source.uri && source.type === 'web_search' && (
                     <a 
                       href={source.uri} 
@@ -63,6 +84,11 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
                     >
                       {source.uri}
                     </a>
+                  )}
+                  {source.uri && source.type !== 'web_search' && (
+                    <p className="text-xs text-gray-500 truncate" title={source.uri}>
+                      {source.uri}
+                    </p>
                   )}
                 </div>
               </div>
@@ -81,8 +107,21 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
             
             {source.content && (
               <div className="mt-3">
-                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
-                  {source.content}
+                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                  {source.content.length > 500 ? (
+                    <details className="group">
+                      <summary className="cursor-pointer hover:text-gray-900 transition-colors">
+                        {source.content.substring(0, 500)}...
+                        <span className="text-blue-600 ml-1 group-open:hidden">続きを読む</span>
+                        <span className="text-blue-600 ml-1 hidden group-open:inline">折りたたむ</span>
+                      </summary>
+                      <div className="mt-2">
+                        {source.content.substring(500)}
+                      </div>
+                    </details>
+                  ) : (
+                    source.content
+                  )}
                 </div>
               </div>
             )}
