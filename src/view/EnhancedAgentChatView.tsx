@@ -39,6 +39,7 @@ export default function EnhancedAgentChatView() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
   const [showComparison, setShowComparison] = useState(false);
+  const [lastEnterTime, setLastEnterTime] = useState<number>(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -123,6 +124,23 @@ export default function EnhancedAgentChatView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     sendMessage(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      
+      const currentTime = Date.now();
+      const timeSinceLastEnter = currentTime - lastEnterTime;
+      
+      // 500ms以内に2回目のEnterが押された場合に送信
+      if (timeSinceLastEnter < 500 && timeSinceLastEnter > 0) {
+        sendMessage(true);
+        setLastEnterTime(0); // リセット
+      } else {
+        setLastEnterTime(currentTime);
+      }
+    }
   };
 
   const formatProcessingTime = (ms?: number) => {
@@ -303,8 +321,9 @@ export default function EnhancedAgentChatView() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="質問を入力してください（例：最新のAI技術トレンドは？）"
+              placeholder="質問を入力してください（Enter2回で送信）"
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={handleKeyDown}
               disabled={isLoading}
             />
             

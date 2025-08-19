@@ -41,15 +41,17 @@ export default function CompactChatInterface({
   onSourcesUpdate, 
   apiEndpoint = '/api/chat', 
   placeholder = 'メッセージを入力...', 
-  isAgentChat = false 
+  isAgentChat = false
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'sonnet35' | 'sonnet4'>('sonnet35');
-  const [selectedApi, setSelectedApi] = useState<'chat' | 'rag-optimized' | 'rag-integrated'>('rag-optimized');
+  const [selectedModel, setSelectedModel] = useState<'sonnet35' | 'sonnet4'>('sonnet4');
+  const [selectedApi, setSelectedApi] = useState<'rag-optimized' | 'rag-integrated'>('rag-integrated');
+  const [selectedAgentApi, setSelectedAgentApi] = useState<'agent-bedrock' | 'agent-enhanced'>('agent-enhanced');
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [currentSearchResult, setCurrentSearchResult] = useState<SearchResult | undefined>(undefined);
+  const [lastEnterTime, setLastEnterTime] = useState<number>(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -86,7 +88,9 @@ export default function CompactChatInterface({
     setCurrentSearchResult(undefined);
 
     try {
-      const endpoint = !isAgentChat ? `/api/${selectedApi}` : apiEndpoint;
+      const endpoint = !isAgentChat 
+        ? `/api/${selectedApi}` 
+        : `/api/${selectedAgentApi}`;
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -142,7 +146,17 @@ export default function CompactChatInterface({
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      
+      const currentTime = Date.now();
+      const timeSinceLastEnter = currentTime - lastEnterTime;
+      
+      // 500ms以内に2回目のEnterが押された場合に送信
+      if (timeSinceLastEnter < 500 && timeSinceLastEnter > 0) {
+        handleSubmit(e);
+        setLastEnterTime(0); // リセット
+      } else {
+        setLastEnterTime(currentTime);
+      }
     }
   };
 
@@ -169,45 +183,60 @@ export default function CompactChatInterface({
           {/* 横並びのコントロール */}
           <div className="flex items-center space-x-3">
             {/* API選択 */}
-            {!isAgentChat && (
-              <div className="flex items-center space-x-1">
-                <span className="text-xs text-gray-600">API:</span>
-                <div className="flex bg-gray-100 rounded p-0.5">
-                  <button
-                    onClick={() => setSelectedApi('chat')}
-                    className={`px-2 py-0.5 text-xs rounded transition-all ${
-                      selectedApi === 'chat'
-                        ? 'bg-white text-blue-600 shadow-sm font-medium'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    基本
-                  </button>
-                  <button
-                    onClick={() => setSelectedApi('rag-optimized')}
-                    className={`px-2 py-0.5 text-xs rounded transition-all ${
-                      selectedApi === 'rag-optimized'
-                        ? 'bg-white text-blue-600 shadow-sm font-medium'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    最適化
-                  </button>
-                  <button
-                    onClick={() => setSelectedApi('rag-integrated')}
-                    className={`px-2 py-0.5 text-xs rounded transition-all ${
-                      selectedApi === 'rag-integrated'
-                        ? 'bg-white text-blue-600 shadow-sm font-medium'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    統合
-                  </button>
-                </div>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs text-gray-600">API:</span>
+              <div className="flex bg-gray-100 rounded p-0.5">
+                {!isAgentChat ? (
+                  <>
+                    <button
+                      onClick={() => setSelectedApi('rag-optimized')}
+                      className={`px-2 py-0.5 text-xs rounded transition-all ${
+                        selectedApi === 'rag-optimized'
+                          ? 'bg-white text-blue-600 shadow-sm font-medium'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      最適化
+                    </button>
+                    <button
+                      onClick={() => setSelectedApi('rag-integrated')}
+                      className={`px-2 py-0.5 text-xs rounded transition-all ${
+                        selectedApi === 'rag-integrated'
+                          ? 'bg-white text-blue-600 shadow-sm font-medium'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      統合
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setSelectedAgentApi('agent-bedrock')}
+                      className={`px-2 py-0.5 text-xs rounded transition-all ${
+                        selectedAgentApi === 'agent-bedrock'
+                          ? 'bg-white text-blue-600 shadow-sm font-medium'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      統合
+                    </button>
+                    <button
+                      onClick={() => setSelectedAgentApi('agent-enhanced')}
+                      className={`px-2 py-0.5 text-xs rounded transition-all ${
+                        selectedAgentApi === 'agent-enhanced'
+                          ? 'bg-white text-blue-600 shadow-sm font-medium'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      最適化
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+            </div>
             
-            {/* モデル選択 */}
+            {/* モデル選択 - RAGとエージェント両方で表示 */}
             <div className="flex items-center space-x-1">
               <span className="text-xs text-gray-600">モデル:</span>
               <div className="flex bg-gray-100 rounded p-0.5">
@@ -229,7 +258,7 @@ export default function CompactChatInterface({
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
-                  Sonnet 4
+                  4 Sonnet
                 </button>
               </div>
             </div>

@@ -69,7 +69,18 @@ $search_results$
 User Question: $query$`;
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  const stepTimings: { [key: string]: number } = {};
+  
+  const logStep = (step: string) => {
+    const currentTime = Date.now();
+    const elapsed = currentTime - startTime;
+    stepTimings[step] = elapsed;
+    console.log(`[${elapsed}ms] ${step}`);
+  };
+  
   try {
+    logStep('Request received');
     const { 
       message, 
       model = 'sonnet', 
@@ -85,15 +96,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('=== RAG Integrated API ===');
+    console.log('\n========================================');
+    console.log('=== RAG Integrated API Request ===');
+    console.log('========================================');
     console.log('Query:', message);
     console.log('Model:', model);
     console.log('Session enabled:', useSession);
     console.log('Knowledge Base ID:', process.env.BEDROCK_KNOWLEDGE_BASE_ID);
     console.log('AWS Region:', process.env.AWS_REGION);
+    console.log('========================================\n');
+    
+    logStep('Initial setup completed');
 
     // セッションクリーンアップ
+    logStep('Session cleanup started');
     cleanupSessions();
+    logStep('Session cleanup completed');
 
     let sessionConfig: any = undefined;
     let sessionInfo = null;
@@ -139,6 +157,7 @@ export async function POST(request: NextRequest) {
     const selectedModelArn = modelMap[model as keyof typeof modelMap] || modelMap['sonnet35'];
     
     console.log('Selected model ARN:', selectedModelArn);
+    logStep('Model selection completed');
 
     // RetrieveAndGenerateコマンドの準備（引用強化版）
     const commandInput: any = {
@@ -188,10 +207,14 @@ $search_results$
       commandInput.sessionConfiguration = sessionConfig;
     }
 
+    logStep('Building RetrieveAndGenerate command');
     const command = new RetrieveAndGenerateCommand(commandInput);
+    logStep('Command built successfully');
 
-    console.log('Executing RetrieveAndGenerate command...');
+    console.log('\n--- Executing RetrieveAndGenerate command ---');
+    logStep('Starting RetrieveAndGenerate');
     const response = await agentClient.send(command);
+    logStep('RetrieveAndGenerate completed');
     
     console.log('RetrieveAndGenerate response summary:', {
       hasOutput: !!response.output?.text,
@@ -220,6 +243,7 @@ $search_results$
     }
 
     // 全ての参照を収集（複数のretrievedReferencesがある場合に対応）
+    logStep('Starting source collection');
     const allSources: any[] = [];
     const sourceMap = new Map<string, any>();
     let citationCounter = 1;
@@ -278,10 +302,12 @@ $search_results$
     }
 
     console.log('Total unique sources found:', allSources.length);
+    logStep(`Source collection completed: ${allSources.length} sources`);
     
     // フォールバック: RetrieveAndGenerateで参照が取得できない場合は直接Retrieveを実行
     if (allSources.length === 0) {
-      console.log('No sources found via RetrieveAndGenerate, falling back to direct Retrieve...');
+      console.log('\n--- No sources found, executing fallback Retrieve ---');
+      logStep('Starting fallback Retrieve');
       
       try {
         const retrieveCommand = new RetrieveCommand({
@@ -298,6 +324,7 @@ $search_results$
         });
         
         const retrieveResponse = await agentClient.send(retrieveCommand);
+        logStep('Fallback Retrieve completed');
         console.log('Direct retrieve found:', retrieveResponse.retrievalResults?.length || 0, 'results');
         
         // 直接取得した結果を処理
@@ -327,6 +354,7 @@ $search_results$
     });
 
     // レスポンスの構築
+    logStep('Building final response');
     let finalResponse = response.output?.text || 'No response generated';
     
     // もしRetrieveAndGenerateが失敗している場合、フォールバックが動作していればソースを使用
@@ -365,6 +393,23 @@ ${allSources.slice(0, 5).map((source, index) =>
       }
     };
 
+    logStep('Response preparation completed');
+    
+    const totalTime = Date.now() - startTime;
+    console.log('\n========================================');
+    console.log('=== RAG Integrated API Response Summary ===');
+    console.log('========================================');
+    console.log(`Total response time: ${totalTime}ms (${(totalTime / 1000).toFixed(2)}s)`);
+    console.log('\nStep timings:');
+    Object.entries(stepTimings).forEach(([step, time]) => {
+      console.log(`  - ${step}: ${time}ms`);
+    });
+    console.log(`\nSources found: ${allSources.length}`);
+    console.log(`Response length: ${finalResponse.length} characters`);
+    console.log(`Model used: ${model}`);
+    console.log(`Fallback used: ${isRetrieveAndGenerateFailed && allSources.length > 0}`);
+    console.log('========================================\n');
+    
     return NextResponse.json(formattedResponse);
 
   } catch (error: any) {
