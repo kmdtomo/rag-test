@@ -35,10 +35,11 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'sonnet35' | 'sonnet4'>('sonnet35');
-  const [selectedApi, setSelectedApi] = useState<'chat' | 'rag-optimized' | 'rag-integrated'>('rag-optimized');
+  const [selectedModel, setSelectedModel] = useState<'sonnet35' | 'sonnet4'>('sonnet4');
+  const [selectedApi, setSelectedApi] = useState<'rag-optimized' | 'rag-integrated'>('rag-integrated');
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [currentSearchResult, setCurrentSearchResult] = useState<SearchResult | undefined>(undefined);
+  const [lastEnterTime, setLastEnterTime] = useState<number>(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -216,7 +217,17 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      
+      const currentTime = Date.now();
+      const timeSinceLastEnter = currentTime - lastEnterTime;
+      
+      // 500ms以内に2回目のEnterが押された場合に送信
+      if (timeSinceLastEnter < 500 && timeSinceLastEnter > 0) {
+        handleSubmit(e);
+        setLastEnterTime(0); // リセット
+      } else {
+        setLastEnterTime(currentTime);
+      }
     }
   };
 
@@ -250,17 +261,6 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
           <div className="flex items-center space-x-2 mt-3">
             <span className="text-xs text-gray-600">API:</span>
             <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setSelectedApi('chat')}
-                className={`px-2 py-1 text-xs rounded-md transition-all ${
-                  selectedApi === 'chat'
-                    ? 'bg-white text-blue-600 shadow-sm font-medium'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-                title="基本的なRAG API"
-              >
-                基本
-              </button>
               <button
                 onClick={() => setSelectedApi('rag-optimized')}
                 className={`px-2 py-1 text-xs rounded-md transition-all ${
@@ -309,7 +309,7 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
                   : 'text-gray-600 hover:text-gray-800'
               }`}
             >
-              Claude Sonnet 4
+              Claude 4 Sonnet
             </button>
           </div>
         </div>
@@ -321,7 +321,6 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
               ? 'Web検索エージェント: リアルタイム情報を並列検索'
               : (
                 <>
-                  {selectedApi === 'chat' && '基本RAG: シンプルな検索と生成'}
                   {selectedApi === 'rag-optimized' && '最適化RAG: クエリ分解・ハイブリッド検索・再ランキング'}
                   {selectedApi === 'rag-integrated' && '統合RAG: RetrieveAndGenerate・セッション管理'}
                 </>

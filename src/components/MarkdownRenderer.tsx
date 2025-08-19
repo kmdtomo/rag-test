@@ -33,7 +33,9 @@ export default function MarkdownRenderer({
                 key={`citation-${i}`}
                 onClick={() => {
                   console.log('MarkdownRenderer citation click:', { citationNum, sourceIndex, sources: sources.length });
-                  onCitationClick && onCitationClick(sourceIndex);
+                  if (onCitationClick) {
+                    onCitationClick(sourceIndex);
+                  }
                 }}
                 className="inline-flex items-center justify-center px-1 py-0.5 mx-0.5 text-xs font-medium text-blue-600 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
               >
@@ -49,7 +51,9 @@ export default function MarkdownRenderer({
                 key={`citation-${i}`}
                 onClick={() => {
                   console.log('MarkdownRenderer fallback citation click:', { citationNum, index, sources: sources.length });
-                  onCitationClick && onCitationClick(index);
+                  if (onCitationClick) {
+                    onCitationClick(index);
+                  }
                 }}
                 className="inline-flex items-center justify-center px-1 py-0.5 mx-0.5 text-xs font-medium text-blue-600 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
               >

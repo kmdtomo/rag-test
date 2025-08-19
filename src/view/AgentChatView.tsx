@@ -79,8 +79,8 @@ export default function AgentChatView({ agentId }: AgentChatViewProps) {
               <CompactChatInterface 
                 onSourceClick={handleSourceClick}
                 onSourcesUpdate={handleSourcesUpdate}
-                apiEndpoint="/api/agent-direct"
-                placeholder="エージェントに質問してください（Web検索、ナレッジベース検索が可能です）"
+                apiEndpoint="/api/agent-enhanced"
+                placeholder="エージェントに質問してください（Enter2回で送信）"
                 isAgentChat={true}
               />
             </div>

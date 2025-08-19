@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
+// モデルIDマップ
+const modelMap = {
+  'sonnet35': process.env.BEDROCK_MODEL_ID_SONNET_35 || 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+  'sonnet4': process.env.BEDROCK_MODEL_ID_SONNET_4 || 'apac.anthropic.claude-sonnet-4-20250514-v1:0'
+};
+
 // 型定義
 interface SearchSource {
   id: string;
@@ -429,7 +435,7 @@ async function performEnhancedParallelSearch(enhancedQueries: EnhancedQuery[]): 
 }
 
 // Claude 3.5 Sonnetで回答生成
-async function callClaudeWithEnhancedContext(message: string, searchResult: SearchResult): Promise<string> {
+async function callClaudeWithEnhancedContext(message: string, searchResult: SearchResult, model: string = 'sonnet4'): Promise<string> {
   // 検索結果をコンテキストとして整形
   const context = formatEnhancedSearchContext(searchResult);
   
@@ -457,8 +463,9 @@ ${context}
 - データ比較や構造化情報にはテーブルを使用`;
 
   // Converse APIを使用
+  const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet4'];
   const command = new InvokeModelCommand({
-    modelId: 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+    modelId: modelId,
     body: JSON.stringify({
       anthropic_version: "bedrock-2023-05-31",
       max_tokens: 2048,
@@ -536,7 +543,7 @@ function formatEnhancedSearchContext(searchResult: SearchResult): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, sessionId } = await request.json();
+    const { message, sessionId, model = 'sonnet4' } = await request.json();
 
     if (!message) {
       return NextResponse.json(
@@ -558,9 +565,10 @@ export async function POST(request: NextRequest) {
     const searchResult = await performEnhancedParallelSearch(enhancedQueries);
     console.log(`Search completed: ${searchResult.sources?.length || 0} unique sources`);
 
-    // ステップ3: Claude 3.5 Sonnetで回答生成
-    console.log('Step 3: Generating response with Claude 3.5 Sonnet...');
-    const aiResponse = await callClaudeWithEnhancedContext(message, searchResult);
+    // ステップ3: Claudeで回答生成
+    const selectedModel = model === 'sonnet35' ? 'sonnet35' : 'sonnet4';
+    console.log(`Step 3: Generating response with Claude ${selectedModel}...`);
+    const aiResponse = await callClaudeWithEnhancedContext(message, searchResult, selectedModel);
     
     const totalTime = Date.now() - startTime;
     console.log(`Total enhanced processing time: ${totalTime}ms`);
