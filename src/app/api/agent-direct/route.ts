@@ -42,10 +42,10 @@ const lambdaClient = new LambdaClient({
 });
 
 // Claude Haikuでクエリを分解
-async function decomposeQueryWithHaiku(query: string): Promise<string[]> {
+async function decomposeQueryWithHaiku(query: string, addLog: (msg: string) => void): Promise<string[]> {
   try {
-    console.log('=== Query Decomposition with Haiku ===');
-    console.log('Original query:', query);
+    addLog('\n🤔 Claude Haikuでクエリを分析中...');
+    addLog(`💬 元の質問: ${query}`);
     
     // 現在の日付を取得
     const now = new Date();
@@ -81,11 +81,11 @@ async function decomposeQueryWithHaiku(query: string): Promise<string[]> {
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
     const subQueriesText = responseBody.content[0].text.trim();
     
-    console.log('Haiku response:', subQueriesText);
+    addLog(`🤖 Haikuの回答: ${subQueriesText}`);
     
     const subQueries = JSON.parse(subQueriesText);
     if (Array.isArray(subQueries) && subQueries.length > 0) {
-      console.log(`Successfully decomposed into ${subQueries.length} queries:`, subQueries);
+      addLog(`✅ ${subQueries.length}個のクエリに分解成功: ${JSON.stringify(subQueries)}`);
       return subQueries.slice(0, 3); // 3クエリに固定
     }
     
@@ -93,13 +93,14 @@ async function decomposeQueryWithHaiku(query: string): Promise<string[]> {
     
   } catch (error) {
     console.error('Query decomposition failed:', error);
+    addLog('⚠️ クエリ分解に失敗 - フォールバックを使用');
     // フォールバック：単一クエリ
     return [query];
   }
 }
 
 // 単一のLambda検索を実行
-async function searchWithLambda(query: string): Promise<SearchResult> {
+async function searchWithLambda(query: string, addLog?: (msg: string) => void): Promise<SearchResult> {
   const startTime = Date.now();
   
   try {
@@ -151,6 +152,7 @@ async function searchWithLambda(query: string): Promise<SearchResult> {
     
   } catch (error) {
     console.error('Lambda invocation error:', error);
+    if (addLog) addLog('❌ Lambda関数の呼び出しでエラーが発生しました');
     return {
       type: 'search_results',
       query: query,
@@ -232,12 +234,12 @@ ${context}
 
 // 検索結果をコンテキストとして整形
 function formatSearchContext(searchResult: SearchResult): string {
-  console.log('=== Formatting Search Context ===');
-  console.log('Search result sources count:', searchResult.sources?.length || 0);
-  console.log('Search result URLs count:', searchResult.urls?.length || 0);
+  console.log('📄 検索結果をフォーマット中...');
+  console.log('情報源数:', searchResult.sources?.length || 0);
+  console.log('URL数:', searchResult.urls?.length || 0);
   
   if (!searchResult.sources || searchResult.sources.length === 0) {
-    console.warn('No sources found in search result');
+    console.warn('⚠️ 検索結果に情報源が見つかりませんでした');
     return "Web検索結果：なし";
   }
   
@@ -245,7 +247,7 @@ function formatSearchContext(searchResult: SearchResult): string {
   
   // 要約がある場合は追加
   if (searchResult.summary) {
-    context += `概要: ${searchResult.summary}\n\n`;
+    context += `📝 概要: ${searchResult.summary}\n\n`;
   }
   
   // 各ソースを整形
@@ -260,20 +262,21 @@ function formatSearchContext(searchResult: SearchResult): string {
 }
 
 // 並列でLambda検索を実行し、結果を統合
-async function performParallelSearch(queries: string[]): Promise<SearchResult> {
+async function performParallelSearch(queries: string[], addLog: (msg: string) => void): Promise<SearchResult> {
   const startTime = Date.now();
   
-  console.log(`=== Parallel Search for ${queries.length} queries ===`);
+  addLog(`\n🔍 ${queries.length}個のクエリで並列検索を実行...`);
   
   // 並列でLambda関数を呼び出し
   const searchPromises = queries.map(async (query, index) => {
-    console.log(`Starting search ${index + 1}: ${query}`);
+    addLog(`  🔍 検索 ${index + 1} を開始: ${query}`);
     try {
-      const result = await searchWithLambda(query);
-      console.log(`Search ${index + 1} completed: ${result.urls?.length || 0} URLs found`);
+      const result = await searchWithLambda(query, addLog);
+      addLog(`  ✅ 検索 ${index + 1} 完了: ${result.urls?.length || 0}件のURLを取得`);
       return result;
     } catch (error) {
       console.error(`Search ${index + 1} failed:`, error);
+      addLog(`  ❌ 検索 ${index + 1} が失敗しました`);
       return null;
     }
   });
@@ -290,7 +293,7 @@ async function performParallelSearch(queries: string[]): Promise<SearchResult> {
     
     // 要約を収集
     if (result.summary) {
-      summaries.push(`【${queries[index]}】\n${result.summary}`);
+      summaries.push(`🔍 検索: ${queries[index]}\n${result.summary}`);
     }
     
     // ソースを統合（重複URLを除去）
@@ -312,7 +315,7 @@ async function performParallelSearch(queries: string[]): Promise<SearchResult> {
   allSources.sort((a, b) => b.relevance_score - a.relevance_score);
   const topSources = allSources.slice(0, 15);
   
-  console.log(`Parallel search completed: ${topSources.length} unique sources found`);
+  addLog(`✅ 並列検索完了: ${topSources.length}件のユニークな情報源を収集`);
   
   return {
     type: 'search_results',
@@ -327,6 +330,12 @@ async function performParallelSearch(queries: string[]): Promise<SearchResult> {
 }
 
 export async function POST(request: NextRequest) {
+  const processLog: string[] = [];
+  const addLog = (message: string) => {
+    console.log(message);
+    processLog.push(message);
+  };
+  
   try {
     const { message, sessionId } = await request.json();
 
@@ -337,25 +346,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Processing query (Direct mode with decomposition):', message);
+    addLog(`\n╔════════════════════════════════════════╗\n║ 🎯 エージェント直接API リクエスト開始 🎯 ║\n╚════════════════════════════════════════╝\n💬 ユーザーの質問: ${message}`);
     const startTime = Date.now();
 
     // ステップ1: Claude Haikuでクエリを分解（1回目のAPI呼び出し）
-    console.log('Step 1: Decomposing query with Claude Haiku...');
-    const subQueries = await decomposeQueryWithHaiku(message);
-    console.log(`Query decomposed into ${subQueries.length} sub-queries:`, subQueries);
+    addLog('\n🔹 ステップ1: Claude Haikuでクエリを分解中...');
+    const subQueries = await decomposeQueryWithHaiku(message, addLog);
+    addLog(`✅ ${subQueries.length}個のサブクエリに分解: ${JSON.stringify(subQueries)}`);
 
     // ステップ2: 並列Lambda検索（2-4回目のAPI呼び出し）
-    console.log('Step 2: Executing parallel web searches via Lambda...');
-    const searchResult = await performParallelSearch(subQueries);
-    console.log(`Search completed: ${searchResult.urls?.length || 0} unique URLs found`);
+    addLog('\n🔹 ステップ2: Lambdaで並列Web検索を実行中...');
+    const searchResult = await performParallelSearch(subQueries, addLog);
+    addLog(`✅ 検索完了: ${searchResult.urls?.length || 0}件のユニークURLを取得`);
 
     // ステップ3: Bedrock Claude APIで回答生成（最後のAPI呼び出し）
-    console.log('Step 3: Generating response with Claude via Bedrock...');
+    addLog('\n🔹 ステップ3: Claudeで回答を生成中...');
     const aiResponse = await callClaude(message, searchResult);
     
     const totalTime = Date.now() - startTime;
-    console.log(`Total processing time: ${totalTime}ms`);
+    addLog(`\n╔════════════════════════════════════════╗\n║ 🏁 処理完了サマリー 🏁 ║\n╚════════════════════════════════════════╝\n⏱️  合計処理時間: ${totalTime}ミリ秒 (${(totalTime / 1000).toFixed(2)}秒)\n${'─'.repeat(40)}`);
 
     // レスポンスの構築
     const response = {
@@ -371,7 +380,10 @@ export async function POST(request: NextRequest) {
         query: source.search_query
       })),
       processingTime: totalTime,
-      apiCalls: 2 + subQueries.length // Haiku + Lambda(複数) + Claude
+      apiCalls: 2 + subQueries.length, // Haiku + Lambda(複数) + Claude
+      metadata: {
+        processLog: processLog
+      }
     };
 
     return NextResponse.json(response);

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import RealTimeSearchDisplay from './RealTimeSearchDisplay';
 import { SearchResult } from '@/types/agent';
 import MarkdownRenderer from './MarkdownRenderer';
+import { ProcessDetails } from './ProcessDetails';
 
 
 interface Source {
@@ -21,6 +22,7 @@ interface Message {
   sources?: Source[];
   searchedUrls?: string[];
   searchResult?: SearchResult;
+  processLog?: string[];
 }
 
 interface ChatInterfaceProps {
@@ -146,6 +148,9 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
         setMessages(prev => [...prev, errorMessage]);
       } else {
         // 正常レスポンスの処理
+        console.log('Response data:', data);
+        console.log('Process log from metadata:', data.metadata?.processLog);
+        
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -154,6 +159,7 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
           sources: data.sources,
           searchedUrls: data.searchedUrls,
           searchResult: data.searchResult,
+          processLog: data.metadata?.processLog,
         };
         setMessages(prev => [...prev, assistantMessage]);
         
@@ -420,6 +426,11 @@ export default function ChatInterface({ onSourceClick, onSourcesUpdate, apiEndpo
                       })}
                     </div>
                   </div>
+                )}
+                
+                {/* 処理の詳細表示 */}
+                {message.role === 'assistant' && message.processLog && message.processLog.length > 0 && (
+                  <ProcessDetails processLog={message.processLog} className="mt-3" />
                 )}
                 <div className={`mt-1 px-1 text-xs text-gray-400 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
                   {formatTime(message.timestamp)}

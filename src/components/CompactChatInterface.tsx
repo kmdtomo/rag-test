@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import RealTimeSearchDisplay from './RealTimeSearchDisplay';
 import { SearchResult } from '@/types/agent';
 import MarkdownRenderer from './MarkdownRenderer';
+import { ProcessDetails } from './ProcessDetails';
 
 interface Source {
   content?: string;
@@ -26,6 +27,7 @@ interface Message {
   sources?: Source[];
   searchedUrls?: string[];
   searchResult?: SearchResult;
+  processLog?: string[];
 }
 
 interface ChatInterfaceProps {
@@ -92,13 +94,21 @@ export default function CompactChatInterface({
         ? `/api/${selectedApi}` 
         : `/api/${selectedAgentApi}`;
       
+      // Build request body based on API type
+      const requestBody: any = {
+        message: userMessage.content,
+        model: selectedModel
+      };
+      
+      // Add API-specific parameters
+      if (!isAgentChat && selectedApi === 'rag-optimized') {
+        requestBody.enableOptimizations = true;
+      }
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage.content,
-          model: selectedModel
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -114,6 +124,9 @@ export default function CompactChatInterface({
       const searchedUrls = data.searchResult?.urls || [];
       const sources = data.sources || [];
 
+      console.log('Response data:', data);
+      console.log('Process log from metadata:', data.metadata?.processLog);
+      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -121,7 +134,8 @@ export default function CompactChatInterface({
         timestamp: new Date(),
         sources: sources.length > 0 ? sources : undefined,
         searchedUrls: searchedUrls.length > 0 ? searchedUrls : undefined,
-        searchResult: data.searchResult
+        searchResult: data.searchResult,
+        processLog: data.metadata?.processLog
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -304,6 +318,12 @@ export default function CompactChatInterface({
                     <div className="text-sm">{message.content}</div>
                   )}
                 </div>
+                
+                {/* 処理の詳細表示 */}
+                {message.role === 'assistant' && message.processLog && message.processLog.length > 0 && (
+                  <ProcessDetails processLog={message.processLog} className="mt-2" />
+                )}
+                
                 <div className={`text-xs text-gray-400 mt-1 ${
                   message.role === 'user' ? 'text-right' : 'text-left'
                 }`}>

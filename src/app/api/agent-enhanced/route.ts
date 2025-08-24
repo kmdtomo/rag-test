@@ -102,10 +102,11 @@ function detectTemporalContext(query: string): { days?: number; topic?: 'news' |
 }
 
 // Claude Haikuでクエリを高度に分解
-async function decomposeQueryWithEnhancedHaiku(query: string): Promise<EnhancedQuery[]> {
+async function decomposeQueryWithEnhancedHaiku(query: string, addLog: (msg: string) => void): Promise<EnhancedQuery[]> {
   try {
-    console.log('=== Enhanced Query Decomposition with Haiku ===');
-    console.log('Original query:', query);
+    addLog('\n🧠 Claude Haikuによる高度なクエリ分析');
+    addLog('─'.repeat(40));
+    addLog(`📝 元の質問: ${query}`);
     
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -194,7 +195,8 @@ async function decomposeQueryWithEnhancedHaiku(query: string): Promise<EnhancedQ
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
     const text = responseBody.content[0].text.trim();
     
-    console.log('Haiku raw response:', text);
+    addLog(`\n🤖 Haikuの分析結果:`);
+    addLog(text);
     
     // JSONをパース（エラーハンドリング強化）
     let enhancedQueries;
@@ -204,7 +206,7 @@ async function decomposeQueryWithEnhancedHaiku(query: string): Promise<EnhancedQ
       enhancedQueries = JSON.parse(jsonText);
     } catch (parseError) {
       console.error('Failed to parse Haiku response:', parseError);
-      console.log('Attempting to extract JSON from text...');
+      addLog('テキストからJSONを抽出しています...');
       // JSON配列を探す
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
@@ -232,7 +234,7 @@ async function decomposeQueryWithEnhancedHaiku(query: string): Promise<EnhancedQ
         }
       }));
       
-      console.log(`Successfully decomposed into ${processedQueries.length} enhanced queries`);
+      addLog(`✅ ${processedQueries.length}個の検索クエリに分解しました`);
       return processedQueries.slice(0, 5); // 最大5クエリに拡張
     }
     
@@ -251,6 +253,7 @@ async function decomposeQueryWithEnhancedHaiku(query: string): Promise<EnhancedQ
     
   } catch (error) {
     console.error('Enhanced query decomposition failed:', error);
+    addLog('⚠️ クエリ分解に失敗しました - フォールバックを使用します');
     // フォールバック：単一クエリ
     const temporalContext = detectTemporalContext(query);
     return [{
@@ -267,7 +270,7 @@ async function decomposeQueryWithEnhancedHaiku(query: string): Promise<EnhancedQ
 }
 
 // 強化されたLambda検索
-async function searchWithEnhancedLambda(enhancedQuery: EnhancedQuery): Promise<SearchResult> {
+async function searchWithEnhancedLambda(enhancedQuery: EnhancedQuery, addLog?: (msg: string) => void): Promise<SearchResult> {
   const startTime = Date.now();
   
   try {
@@ -284,7 +287,18 @@ async function searchWithEnhancedLambda(enhancedQuery: EnhancedQuery): Promise<S
         return { name: key, value: stringValue };
       });
 
-    console.log(`Calling Lambda with params:`, parameters);
+    if (addLog) {
+      addLog(`\n🔄 Lambda関数呼び出し`);
+      addLog(`  ・ 関数名: ${process.env.TAVILY_LAMBDA_FUNCTION_NAME || 'tavily_search-giolt'}`);
+      addLog(`  ・ パラメータ:`);
+      parameters.forEach(param => {
+        const displayValue = param.name === 'query' ? param.value : 
+                           param.name === 'search_depth' ? (param.value === 'advanced' ? '詳細' : '基本') :
+                           param.name === 'topic' ? (param.value === 'news' ? 'ニュース' : '一般') :
+                           param.value;
+        addLog(`    - ${param.name}: ${displayValue}`);
+      });
+    }
 
     const command = new InvokeCommand({
       FunctionName: process.env.TAVILY_LAMBDA_FUNCTION_NAME || 'tavily_search-giolt',
@@ -297,12 +311,26 @@ async function searchWithEnhancedLambda(enhancedQuery: EnhancedQuery): Promise<S
       })
     });
 
+    const lambdaStartTime = Date.now();
     const response = await lambdaClient.send(command);
+    const lambdaEndTime = Date.now();
     const responsePayload = JSON.parse(new TextDecoder().decode(response.Payload));
     
     // Lambda関数のレスポンスをパース
     if (responsePayload.response?.functionResponse?.responseBody?.TEXT?.body) {
       const searchData = JSON.parse(responsePayload.response.functionResponse.responseBody.TEXT.body);
+      
+      if (addLog) {
+        addLog(`  ✅ Lambda実行成功 (${lambdaEndTime - lambdaStartTime}ms)`);
+        addLog(`  ・ 検索結果: ${searchData.sources?.length || 0}件`);
+        if (searchData.summary) {
+          addLog(`  ・ AI要約: あり`);
+        }
+        if (searchData.images?.length > 0) {
+          addLog(`  ・ 画像: ${searchData.images.length}件`);
+        }
+      }
+      
       return {
         ...searchData,
         processing_time: (Date.now() - startTime) / 1000
@@ -330,8 +358,12 @@ async function searchWithEnhancedLambda(enhancedQuery: EnhancedQuery): Promise<S
       summary: 'Web検索結果を取得できませんでした。'
     };
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Lambda invocation error:', error);
+    if (addLog) {
+      addLog(`❌ Lambda関数の呼び出しでエラーが発生しました`);
+      addLog(`  ・ エラー: ${error.message || 'Unknown error'}`);
+    }
     return {
       type: 'search_results',
       query: enhancedQuery.query,
@@ -346,23 +378,49 @@ async function searchWithEnhancedLambda(enhancedQuery: EnhancedQuery): Promise<S
 }
 
 // 並列で強化された検索を実行
-async function performEnhancedParallelSearch(enhancedQueries: EnhancedQuery[]): Promise<SearchResult> {
+async function performEnhancedParallelSearch(enhancedQueries: EnhancedQuery[], addLog: (msg: string) => void): Promise<SearchResult> {
   const startTime = Date.now();
   
-  console.log(`=== Enhanced Parallel Search for ${enhancedQueries.length} queries ===`);
+  addLog(`\n📊 並列Web検索の実行計画`);
+  addLog('─'.repeat(40));
+  addLog(`🎯 検索クエリ数: ${enhancedQueries.length}個`);
   enhancedQueries.forEach((eq, i) => {
-    console.log(`Query ${i + 1}: "${eq.query}" with depth=${eq.searchParams.search_depth}, max=${eq.searchParams.max_results}`);
+    addLog(`\n[クエリ ${i + 1}]`);
+    addLog(`  📝 検索語句: "${eq.query}"`);
+    addLog(`  ⚙️ パラメータ:`);
+    addLog(`    - 検索深度: ${eq.searchParams.search_depth === 'advanced' ? '詳細検索' : '基本検索'}`);
+    addLog(`    - 最大結果数: ${eq.searchParams.max_results}件`);
+    if (eq.searchParams.days) {
+      addLog(`    - 期間制限: 過去${eq.searchParams.days}日間`);
+    }
+    if (eq.searchParams.topic) {
+      addLog(`    - トピック: ${eq.searchParams.topic === 'news' ? 'ニュース' : '一般'}`);
+    }
   });
+  
+  addLog(`\n⏳ ${enhancedQueries.length}個の検索を並列実行中...`);
+  addLog('─'.repeat(40));
   
   // 並列でLambda関数を呼び出し
   const searchPromises = enhancedQueries.map(async (enhancedQuery, index) => {
-    console.log(`Starting search ${index + 1}: ${enhancedQuery.query}`);
+    const searchStartTime = Date.now();
+    addLog(`\n🔍 検索 ${index + 1} を開始: "${enhancedQuery.query}"`);
     try {
-      const result = await searchWithEnhancedLambda(enhancedQuery);
-      console.log(`Search ${index + 1} completed: ${result.sources?.length || 0} sources, summary=${!!result.summary}`);
+      const result = await searchWithEnhancedLambda(enhancedQuery, addLog);
+      const searchEndTime = Date.now();
+      addLog(`✅ 検索 ${index + 1} 完了 (${searchEndTime - searchStartTime}ms)`);
+      addLog(`  ・ 情報源: ${result.sources?.length || 0}件`);
+      addLog(`  ・ AI要約: ${result.summary ? 'あり' : 'なし'}`);
+      if (result.sources && result.sources.length > 0) {
+        addLog(`  ・ 上位3件:`);
+        result.sources.slice(0, 3).forEach((src, i) => {
+          addLog(`    ${i + 1}. ${src.title.substring(0, 50)}${src.title.length > 50 ? '...' : ''}`);
+        });
+      }
       return { result, queryIndex: index };
     } catch (error) {
       console.error(`Search ${index + 1} failed:`, error);
+      addLog(`❌ 検索 ${index + 1} が失敗しました`);
       return null;
     }
   });
@@ -382,7 +440,7 @@ async function performEnhancedParallelSearch(enhancedQueries: EnhancedQuery[]): 
     
     // AI要約を収集（Tavilyのinclude_answerによる）
     if (result.summary && result.summary.trim()) {
-      summaries.push(`【検索${queryIndex + 1}】${result.summary}`);
+      summaries.push(`🔍 検索${queryIndex + 1}の要約: ${result.summary}`);
     }
     
     // 画像を収集
@@ -416,10 +474,26 @@ async function performEnhancedParallelSearch(enhancedQueries: EnhancedQuery[]): 
   allSources.sort((a, b) => b.relevance_score - a.relevance_score);
   const topSources = allSources.slice(0, 15);
   
-  console.log(`Enhanced parallel search completed:`);
-  console.log(`- ${topSources.length} unique sources`);
-  console.log(`- ${summaries.length} AI summaries`);
-  console.log(`- ${allImages.length} images`);
+  addLog(`\n📊 並列検索の集計結果`);
+  addLog('─'.repeat(40));
+  addLog(`✅ 検索完了サマリー:`);
+  addLog(`  ・ ユニークな情報源: ${topSources.length}件`);
+  addLog(`  ・ AI要約: ${summaries.length}個`);
+  addLog(`  ・ 画像: ${allImages.length}枚`);
+  addLog(`  ・ 総処理時間: ${((Date.now() - startTime) / 1000).toFixed(2)}秒`);
+  
+  // スコア分布を表示
+  if (topSources.length > 0) {
+    const scoreRanges = {
+      high: topSources.filter(s => s.relevance_score >= 0.8).length,
+      medium: topSources.filter(s => s.relevance_score >= 0.5 && s.relevance_score < 0.8).length,
+      low: topSources.filter(s => s.relevance_score < 0.5).length
+    };
+    addLog(`\n📈 関連度スコア分布:`);
+    addLog(`  ・ 高関連度 (0.8以上): ${scoreRanges.high}件`);
+    addLog(`  ・ 中関連度 (0.5-0.8): ${scoreRanges.medium}件`);
+    addLog(`  ・ 低関連度 (0.5未満): ${scoreRanges.low}件`);
+  }
   
   return {
     type: 'search_results',
@@ -435,9 +509,15 @@ async function performEnhancedParallelSearch(enhancedQueries: EnhancedQuery[]): 
 }
 
 // Claude 3.5 Sonnetで回答生成
-async function callClaudeWithEnhancedContext(message: string, searchResult: SearchResult, model: string = 'sonnet4'): Promise<string> {
+async function callClaudeWithEnhancedContext(message: string, searchResult: SearchResult, model: string = 'sonnet4', addLog?: (msg: string) => void): Promise<string> {
   // 検索結果をコンテキストとして整形
-  const context = formatEnhancedSearchContext(searchResult);
+  const context = formatEnhancedSearchContext(searchResult, addLog);
+  
+  if (addLog) {
+    addLog('\n🤖 Claude APIを呼び出し中...');
+    addLog(`  ・ コンテキスト長: ${context.length}文字`);
+    addLog(`  ・ モデル: ${model === 'sonnet35' ? 'Claude 3.5 Sonnet' : 'Claude 4 Sonnet'}`);
+  }
   
   // プロンプトの構築
   const prompt = `あなたは親切で知識豊富なアシスタントです。以下のWeb検索結果を参考に、ユーザーの質問に答えてください。
@@ -464,6 +544,12 @@ ${context}
 
   // Converse APIを使用
   const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet4'];
+  
+  if (addLog) {
+    addLog(`  ・ プロンプト長: ${prompt.length}文字`);
+    addLog(`  ・ 使用モデルID: ${modelId}`);
+  }
+  
   const command = new InvokeModelCommand({
     modelId: modelId,
     body: JSON.stringify({
@@ -478,8 +564,16 @@ ${context}
   });
 
   try {
+    const startTime = Date.now();
     const response = await bedrockClient.send(command);
+    const responseTime = Date.now() - startTime;
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+    
+    if (addLog) {
+      addLog(`✅ Claude API呼び出し成功`);
+      addLog(`  ・ 応答時間: ${responseTime}ミリ秒`);
+      addLog(`  ・ 応答長: ${responseBody.content?.[0]?.text?.length || 0}文字`);
+    }
     
     if (responseBody.content && responseBody.content.length > 0) {
       return responseBody.content[0].text;
@@ -487,18 +581,21 @@ ${context}
     
     return "申し訳ございません。回答を生成できませんでした。";
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Claude API error:', error);
+    if (addLog) {
+      addLog(`❌ Claude API呼び出しでエラーが発生しました: ${error.message || 'Unknown error'}`);
+    }
     throw error;
   }
 }
 
 // 強化された検索結果のコンテキスト整形
-function formatEnhancedSearchContext(searchResult: SearchResult): string {
-  console.log('=== Formatting Enhanced Search Context ===');
+function formatEnhancedSearchContext(searchResult: SearchResult, addLog?: (msg: string) => void): string {
+  if (addLog) addLog('\n📄 検索結果をフォーマット中...');
   
   if (!searchResult.sources || searchResult.sources.length === 0) {
-    console.warn('No sources found in search result');
+    if (addLog) addLog('⚠️ 警告: 検索結果に情報源が見つかりませんでした');
     return "Web検索結果：なし";
   }
   
@@ -506,7 +603,7 @@ function formatEnhancedSearchContext(searchResult: SearchResult): string {
   
   // AI要約がある場合は最初に追加（Tavilyの要約）
   if (searchResult.summary && searchResult.summary.trim()) {
-    context += `=== AI要約 ===\n${searchResult.summary}\n\n`;
+    context += `🤖 AIによる要約:\n${searchResult.summary}\n\n`;
   }
   
   // 検索クエリごとにソースをグループ化
@@ -520,7 +617,7 @@ function formatEnhancedSearchContext(searchResult: SearchResult): string {
   });
   
   // 各検索戦略の結果を表示
-  context += `=== 詳細情報源（${searchResult.sources.length}件）===\n\n`;
+  context += `📄 詳細情報源（${searchResult.sources.length}件）:\n\n`;
   
   searchResult.sources.forEach((source, index) => {
     context += `[${index + 1}] ${source.title}\n`;
@@ -534,7 +631,7 @@ function formatEnhancedSearchContext(searchResult: SearchResult): string {
   
   // 画像がある場合
   if (searchResult.images && searchResult.images.length > 0) {
-    context += `\n=== 関連画像 ===\n`;
+    context += `\n🖼️ 関連画像:\n`;
     context += `${searchResult.images.length}件の画像が見つかりました\n`;
   }
   
@@ -542,6 +639,12 @@ function formatEnhancedSearchContext(searchResult: SearchResult): string {
 }
 
 export async function POST(request: NextRequest) {
+  const processLog: string[] = [];
+  const addLog = (message: string) => {
+    console.log(message);
+    processLog.push(message);
+  };
+  
   try {
     const { message, sessionId, model = 'sonnet4' } = await request.json();
 
@@ -552,26 +655,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Processing enhanced query:', message);
+    addLog(`\n╔════════════════════════════════════════╗\n║ 🤖 エージェント強化API リクエスト開始 🤖 ║\n╚════════════════════════════════════════╝\n💬 ユーザーの質問: ${message}`);
     const startTime = Date.now();
 
     // ステップ1: Claude Haikuで高度なクエリ分解
-    console.log('Step 1: Enhanced query decomposition with Claude Haiku...');
-    const enhancedQueries = await decomposeQueryWithEnhancedHaiku(message);
-    console.log(`Query decomposed into ${enhancedQueries.length} enhanced queries`);
+    addLog('\n🔹 ステップ1: Claude Haikuで質問を分析...');
+    const enhancedQueries = await decomposeQueryWithEnhancedHaiku(message, addLog);
+    addLog(`✅ ${enhancedQueries.length}個の強化クエリに分解完了`);
 
     // ステップ2: 強化された並列Lambda検索
-    console.log('Step 2: Executing enhanced parallel web searches...');
-    const searchResult = await performEnhancedParallelSearch(enhancedQueries);
-    console.log(`Search completed: ${searchResult.sources?.length || 0} unique sources`);
+    addLog('\n🔹 ステップ2: 並列Web検索を実行中...');
+    const searchResult = await performEnhancedParallelSearch(enhancedQueries, addLog);
+    addLog(`✅ 検索完了: ${searchResult.sources?.length || 0}件のユニークな情報源を収集`);
 
     // ステップ3: Claudeで回答生成
     const selectedModel = model === 'sonnet35' ? 'sonnet35' : 'sonnet4';
-    console.log(`Step 3: Generating response with Claude ${selectedModel}...`);
-    const aiResponse = await callClaudeWithEnhancedContext(message, searchResult, selectedModel);
+    addLog(`\n🔹 ステップ3: Claude ${selectedModel === 'sonnet35' ? '3.5 Sonnet' : '4 Sonnet'}で回答生成中...`);
+    const aiResponse = await callClaudeWithEnhancedContext(message, searchResult, selectedModel, addLog);
     
     const totalTime = Date.now() - startTime;
-    console.log(`Total enhanced processing time: ${totalTime}ms`);
+    addLog(`\n╔════════════════════════════════════════╗\n║ 🏁 処理完了サマリー 🏁 ║\n╚════════════════════════════════════════╝\n⏱️  合計処理時間: ${totalTime}ミリ秒 (${(totalTime / 1000).toFixed(2)}秒)\n${'─'.repeat(40)}`);
 
     // レスポンスの構築
     const response = {
@@ -594,6 +697,9 @@ export async function POST(request: NextRequest) {
         temporalFiltering: enhancedQueries.some(eq => eq.searchParams.days !== undefined),
         aiSummaries: !!searchResult.summary,
         imageSearch: (searchResult.images?.length || 0) > 0
+      },
+      metadata: {
+        processLog: processLog
       }
     };
 
