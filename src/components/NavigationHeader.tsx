@@ -36,6 +36,16 @@ export default function NavigationHeader() {
               >
                 Agent Chat
               </Link>
+              <Link
+                href="/direct-s3"
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  pathname === '/direct-s3' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                Direct S3
+              </Link>
             </nav>
           </div>
         </div>

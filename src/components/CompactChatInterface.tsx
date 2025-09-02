@@ -11,7 +11,7 @@ interface Source {
   location?: any;
   uri?: string;
   score?: number;
-  type?: 'knowledge_base' | 'web_search';
+  type?: 'knowledge_base' | 'web_search' | 'direct_s3';
   title?: string;
   query?: string;
   citationNumber?: number;
@@ -36,6 +36,7 @@ interface ChatInterfaceProps {
   apiEndpoint?: string;
   placeholder?: string;
   isAgentChat?: boolean;
+  selectedFile?: any; // Direct S3用の選択ファイル
 }
 
 export default function CompactChatInterface({ 
@@ -43,7 +44,8 @@ export default function CompactChatInterface({
   onSourcesUpdate, 
   apiEndpoint = '/api/chat', 
   placeholder = 'メッセージを入力...', 
-  isAgentChat = false
+  isAgentChat = false,
+  selectedFile
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -90,15 +92,23 @@ export default function CompactChatInterface({
     setCurrentSearchResult(undefined);
 
     try {
-      const endpoint = !isAgentChat 
-        ? `/api/${selectedApi}` 
-        : `/api/${selectedAgentApi}`;
+      const endpoint = apiEndpoint !== '/api/chat' 
+        ? apiEndpoint 
+        : (!isAgentChat 
+          ? `/api/${selectedApi}` 
+          : `/api/${selectedAgentApi}`);
       
       // Build request body based on API type
       const requestBody: any = {
         message: userMessage.content,
         model: selectedModel
       };
+      
+      // Add Direct S3 specific parameters
+      if (apiEndpoint === '/api/direct-s3-chat' && selectedFile) {
+        requestBody.fileKey = selectedFile.key;
+        requestBody.fileName = selectedFile.name;
+      }
       
       // Add API-specific parameters
       if (!isAgentChat && selectedApi === 'rag-optimized') {
@@ -130,12 +140,12 @@ export default function CompactChatInterface({
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || data.output?.text || 'エラー: 応答がありません',
+        content: data.content || data.response || data.output?.text || 'エラー: 応答がありません',
         timestamp: new Date(),
         sources: sources.length > 0 ? sources : undefined,
         searchedUrls: searchedUrls.length > 0 ? searchedUrls : undefined,
         searchResult: data.searchResult,
-        processLog: data.metadata?.processLog
+        processLog: data.processLog || data.metadata?.processLog
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -190,16 +200,17 @@ export default function CompactChatInterface({
               </svg>
             </div>
             <h3 className="text-xs font-medium text-gray-900">
-              {isAgentChat ? 'Web検索AI' : 'RAG AI'}
+              {apiEndpoint === '/api/direct-s3-chat' ? 'Direct S3' : (isAgentChat ? 'Web検索AI' : 'RAG AI')}
             </h3>
           </div>
           
           {/* 横並びのコントロール */}
           <div className="flex items-center space-x-3">
-            {/* API選択 */}
-            <div className="flex items-center space-x-1">
-              <span className="text-xs text-gray-600">API:</span>
-              <div className="flex bg-gray-100 rounded p-0.5">
+            {/* API選択 - Direct S3では非表示 */}
+            {apiEndpoint !== '/api/direct-s3-chat' && (
+              <div className="flex items-center space-x-1">
+                <span className="text-xs text-gray-600">API:</span>
+                <div className="flex bg-gray-100 rounded p-0.5">
                 {!isAgentChat ? (
                   <>
                     <button
@@ -247,35 +258,48 @@ export default function CompactChatInterface({
                     </button>
                   </>
                 )}
+                </div>
               </div>
-            </div>
+            )}
             
-            {/* モデル選択 - RAGとエージェント両方で表示 */}
-            <div className="flex items-center space-x-1">
-              <span className="text-xs text-gray-600">モデル:</span>
-              <div className="flex bg-gray-100 rounded p-0.5">
-                <button
-                  onClick={() => setSelectedModel('sonnet35')}
-                  className={`px-2 py-0.5 text-xs rounded transition-all ${
-                    selectedModel === 'sonnet35'
-                      ? 'bg-white text-blue-600 shadow-sm font-medium'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  3.5 Sonnet
-                </button>
-                <button
-                  onClick={() => setSelectedModel('sonnet4')}
-                  className={`px-2 py-0.5 text-xs rounded transition-all ${
-                    selectedModel === 'sonnet4'
-                      ? 'bg-white text-blue-600 shadow-sm font-medium'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  4 Sonnet
-                </button>
+            {/* モデル選択 - RAGとエージェント両方で表示、Direct S3では非表示 */}
+            {apiEndpoint !== '/api/direct-s3-chat' && (
+              <div className="flex items-center space-x-1">
+                <span className="text-xs text-gray-600">モデル:</span>
+                <div className="flex bg-gray-100 rounded p-0.5">
+                  <button
+                    onClick={() => setSelectedModel('sonnet35')}
+                    className={`px-2 py-0.5 text-xs rounded transition-all ${
+                      selectedModel === 'sonnet35'
+                        ? 'bg-white text-blue-600 shadow-sm font-medium'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    3.5 Sonnet
+                  </button>
+                  <button
+                    onClick={() => setSelectedModel('sonnet4')}
+                    className={`px-2 py-0.5 text-xs rounded transition-all ${
+                      selectedModel === 'sonnet4'
+                        ? 'bg-white text-blue-600 shadow-sm font-medium'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    4 Sonnet
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+            
+            {/* Direct S3モード表示 */}
+            {apiEndpoint === '/api/direct-s3-chat' && (
+              <div className="flex items-center space-x-1">
+                <span className="text-xs text-gray-600">モード:</span>
+                <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded font-medium">
+                  Direct S3 (Claude 4)
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
