@@ -16,7 +16,7 @@ interface Source {
   location?: any;
   uri?: string;
   score?: number;
-  type?: 'knowledge_base' | 'web_search';
+  type?: 'knowledge_base' | 'web_search' | 'direct_s3';
   title?: string;
 }
 

@@ -7,7 +7,7 @@ interface Source {
   location?: any;
   uri?: string;
   score?: number;
-  type?: 'knowledge_base' | 'web_search';
+  type?: 'knowledge_base' | 'web_search' | 'direct_s3';
   title?: string;
   citationNumber?: number;
   pageNumber?: number;
@@ -63,6 +63,8 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-sm font-medium ${
                   source.type === 'web_search' 
                     ? 'bg-green-100 text-green-600' 
+                    : source.type === 'direct_s3'
+                    ? 'bg-purple-100 text-purple-600'
                     : 'bg-blue-100 text-blue-600'
                 }`}>
                   {source.citationNumber || index + 1}
@@ -97,9 +99,11 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     source.type === 'web_search' 
                       ? 'bg-green-50 text-green-700' 
+                      : source.type === 'direct_s3'
+                      ? 'bg-purple-50 text-purple-700'
                       : 'bg-blue-50 text-blue-700'
                   }`}>
-                    {source.type === 'web_search' ? 'Web検索' : 'ナレッジベース'}
+                    {source.type === 'web_search' ? 'Web検索' : source.type === 'direct_s3' ? 'Direct S3' : 'ナレッジベース'}
                   </span>
                 )}
               </div>

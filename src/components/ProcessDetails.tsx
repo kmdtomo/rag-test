@@ -87,8 +87,28 @@ export function ProcessDetails({ processLog, className = '' }: ProcessDetailsPro
   
   // Helper function to format log lines with color coding
   const formatLogLine = (line: string) => {
+    // Handle JSON details (└─ prefix)
+    if (line.includes('└─')) {
+      try {
+        const jsonPart = line.substring(line.indexOf('{'));
+        const parsed = JSON.parse(jsonPart);
+        return (
+          <div className="ml-4 text-xs text-gray-400">
+            └─ {Object.entries(parsed).map(([key, value], i) => (
+              <span key={i}>
+                {i > 0 && ', '}
+                <span className="text-blue-400">{key}:</span> <span className="text-green-400">{String(value)}</span>
+              </span>
+            ))}
+          </div>
+        );
+      } catch {
+        // If not valid JSON, continue with normal formatting
+      }
+    }
+    
     // Color code different elements
-    if (line.includes('╔═') || line.includes('╚═') || line.includes('║')) {
+    if (line.includes('╔═') || line.includes('╚═') || line.includes('║') || line.includes('═') || line.includes('─')) {
       return <span className="text-cyan-400 font-bold">{line}</span>;
     }
     if (line.includes('[') && line.includes('ms]')) {
@@ -109,11 +129,17 @@ export function ProcessDetails({ processLog, className = '' }: ProcessDetailsPro
     if (line.includes('❌') || line.includes('⚠️')) {
       return <span className="text-red-400">{line}</span>;
     }
-    if (line.includes('🔍') || line.includes('🔹') || line.includes('📄')) {
+    if (line.includes('🔍') || line.includes('🔹') || line.includes('📄') || line.includes('🔄') || line.includes('🚀')) {
       return <span className="text-blue-400">{line}</span>;
     }
-    if (line.includes('⏱️') || line.includes('📋')) {
+    if (line.includes('⏱️') || line.includes('📋') || line.includes('📊')) {
       return <span className="text-purple-400">{line}</span>;
+    }
+    if (line.includes('🎯') || line.includes('🔐') || line.includes('📝')) {
+      return <span className="text-amber-400">{line}</span>;
+    }
+    if (line.includes('💬') || line.includes('📁') || line.includes('🤖') || line.includes('🌐')) {
+      return <span className="text-indigo-400">{line}</span>;
     }
     return <span className="text-gray-300">{line}</span>;
   };
