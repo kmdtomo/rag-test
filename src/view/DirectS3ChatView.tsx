@@ -38,8 +38,22 @@ export default function DirectS3ChatView() {
     setShowSources(true);
   };
 
-  const handleFileSelect = (file: FileItem | null) => {
-    setSelectedFile(file);
+  const handleFileSelect = (file: {key: string; name: string} | FileItem | null) => {
+    if (!file) {
+      setSelectedFile(null);
+    } else if ('size' in file) {
+      // FileItem型の場合
+      setSelectedFile(file as FileItem);
+    } else {
+      // {key, name}型の場合、FileItemに変換
+      setSelectedFile({
+        key: file.key,
+        name: file.name,
+        size: 0,
+        uploadedAt: new Date().toISOString(),
+        syncStatus: 'completed'
+      });
+    }
   };
 
   return (
@@ -74,8 +88,8 @@ export default function DirectS3ChatView() {
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                   <FileUpload />
                   <FileListWithSelection 
-                    onFileSelect={handleFileSelect}
-                    selectedFile={selectedFile}
+                    onSelectionChange={(file) => handleFileSelect(file as FileItem | null)}
+                    selectedFile={selectedFile ? {key: selectedFile.key, name: selectedFile.name} : null}
                   />
                   
                   {selectedFile && (

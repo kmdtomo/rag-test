@@ -11,11 +11,16 @@ interface FileItem {
 }
 
 interface FileListWithSelectionProps {
-  onFileSelect: (file: FileItem | null) => void;
-  selectedFile: FileItem | null;
+  onSelectionChange: (file: {key: string; name: string} | null) => void;
+  selectedFile: {key: string; name: string} | null;
+  selectionDisabled?: boolean;
 }
 
-export function FileListWithSelection({ onFileSelect, selectedFile }: FileListWithSelectionProps) {
+export function FileListWithSelection({ 
+  onSelectionChange, 
+  selectedFile,
+  selectionDisabled = false 
+}: FileListWithSelectionProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,7 +59,7 @@ export function FileListWithSelection({ onFileSelect, selectedFile }: FileListWi
 
       if (response.ok) {
         if (selectedFile?.key === fileKey) {
-          onFileSelect(null);
+          onSelectionChange(null);
         }
         fetchFiles();
       }
@@ -106,7 +111,14 @@ export function FileListWithSelection({ onFileSelect, selectedFile }: FileListWi
                   ? 'bg-blue-50 border-blue-400 shadow-sm' 
                   : 'bg-gray-50 border-transparent hover:bg-gray-100 hover:border-gray-300'
               }`}
-              onClick={() => onFileSelect(selectedFile?.key === file.key ? null : file)}
+              onClick={() => {
+                if (!selectionDisabled) {
+                  onSelectionChange(selectedFile?.key === file.key ? null : {
+                    key: file.key,
+                    name: file.name
+                  });
+                }
+              }}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start flex-1 min-w-0">
@@ -114,7 +126,15 @@ export function FileListWithSelection({ onFileSelect, selectedFile }: FileListWi
                     type="radio"
                     name="fileSelection"
                     checked={selectedFile?.key === file.key}
-                    onChange={() => onFileSelect(file)}
+                    onChange={() => {
+                      if (!selectionDisabled) {
+                        onSelectionChange({
+                          key: file.key,
+                          name: file.name
+                        });
+                      }
+                    }}
+                    disabled={selectionDisabled}
                     className="mt-1 mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -161,7 +181,7 @@ export function FileListWithSelection({ onFileSelect, selectedFile }: FileListWi
             <span className="font-medium">選択中:</span> {selectedFile.name}
           </p>
           <button
-            onClick={() => onFileSelect(null)}
+            onClick={() => onSelectionChange(null)}
             className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
           >
             選択を解除
