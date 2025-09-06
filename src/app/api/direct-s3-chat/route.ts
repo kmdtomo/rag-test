@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         },
         {
           type: 'text',
-          text: message
+          text: `${message}\n\n【重要】回答する際は、異なる情報や異なるトピックごとに必ず異なる引用番号[1], [2], [3]...を使用してください。最低3つ以上の引用番号を使い分けてください。`
         }
       ];
     } else {
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       messageContent = [
         {
           type: 'text',
-          text: `以下のドキュメントの内容に基づいて質問に答えてください。\n\nファイル名: ${fileName || fileKey}\n${isTruncated ? '⚠️ 注意: ファイルサイズが大きいため、ドキュメントの一部のみが読み込まれています。\n' : ''}\n---\n${fileContent}\n---\n\n${message}`
+          text: `以下のドキュメントの内容に基づいて質問に答えてください。\n\nファイル名: ${fileName || fileKey}\n${isTruncated ? '⚠️ 注意: ファイルサイズが大きいため、ドキュメントの一部のみが読み込まれています。\n' : ''}\n---\n${fileContent}\n---\n\n${message}\n\n【重要】回答する際は、異なる情報や異なるトピックごとに必ず異なる引用番号[1], [2], [3]...を使用してください。最低3つ以上の引用番号を使い分けてください。`
         }
       ];
     }
@@ -163,10 +163,19 @@ export async function POST(request: NextRequest) {
 重要な指示:
 1. 提供されたドキュメントの内容に基づいて回答してください
 2. ドキュメントに記載されていない情報については、その旨を明確に伝えてください
-3. 回答には必ず引用を含めてください。引用は [1] のように表記してください
-4. 日本語で回答してください
-5. コード例が含まれる場合は、適切にフォーマットしてください
-6. PDFや画像の場合、視覚的な要素（図、表、グラフなど）も考慮して回答してください`;
+3. 引用番号の使い方：
+   - 異なるトピック、異なるセクション、異なるページからの情報は、必ず異なる引用番号を使用してください
+   - 例: 売上高の情報[1]、営業利益の情報[2]、技術仕様[3]、製品特徴[4]など
+   - 同じ段落や同じトピックでも、異なる観点や数値は別の引用番号を使用してください
+4. 最低でも3つ以上の異なる引用番号を使用することを推奨します
+5. 引用例:
+   - "2023年の売上高は1,234億円でした[1]。"
+   - "営業利益は前年比15%増の567億円となりました[2]。"
+   - "新製品の特徴として、省エネ性能が30%向上しています[3]。"
+   - "AI技術を活用した自動制御機能も搭載されています[4]。"
+6. 日本語で回答してください
+7. コード例が含まれる場合は、適切にフォーマットしてください
+8. PDFや画像の場合、視覚的な要素（図、表、グラフなど）も考慮して回答してください`;
 
     // Claude APIに送信するメッセージを構築
     const messages = [
@@ -211,23 +220,70 @@ export async function POST(request: NextRequest) {
       stopReason: responseBody.stop_reason || 'N/A'
     });
 
-    // ソース情報を構築
-    const source = {
-      content: isPDF || isImage 
-        ? `${isPDF ? 'PDF' : '画像'}ファイル: ${fileName || fileKey}` 
-        : (await s3Response.Body.transformToString()).substring(0, 500) + '...',
-      uri: `s3://${process.env.AWS_S3_BUCKET}/${fileKey}`,
-      type: 'direct_s3',
-      title: fileName || fileKey,
-      citationNumber: 1,
-      metadata: {
-        fileSize: fileSize,
-        fileType: isPDF ? 'pdf' : (isImage ? 'image' : 'text'),
-        isTruncated: isTruncated,
-        bucket: process.env.AWS_S3_BUCKET,
-        key: fileKey,
+    // レスポンステキストから引用番号を抽出
+    const responseText = responseBody.content[0].text;
+    const citationMatches: string[] = responseText.match(/\[\d+\]/g) ?? ['[1]'];
+    const uniqueCitations: string[] = [...new Set<string>(citationMatches)];
+    const maxCitationNumber = Math.max(
+      ...uniqueCitations.map((c: string) => parseInt(c.replace(/[\[\]]/g, '')))
+    );
+
+    // 各引用に対してソース情報を生成
+    const sources = [];
+    for (let i = 1; i <= maxCitationNumber; i++) {
+      // 引用前後の広い範囲のテキストを抽出（前後150文字程度）
+      const citationPattern = `\\[${i}\\]`;
+      const regex = new RegExp(citationPattern, 'g');
+      const matches = [...responseText.matchAll(regex)];
+      
+      const contextTexts: string[] = [];
+      for (const match of matches) {
+        const index = match.index || 0;
+        const start = Math.max(0, index - 150);
+        const end = Math.min(responseText.length, index + 150);
+        
+        // 文章の区切りを見つけて調整
+        let contextStart = start;
+        let contextEnd = end;
+        
+        // 開始位置を文の始まりに調整
+        const prevPeriod = responseText.lastIndexOf('。', index);
+        const prevNewline = responseText.lastIndexOf('\n', index);
+        contextStart = Math.max(start, Math.max(prevPeriod + 1, prevNewline + 1));
+        
+        // 終了位置を文の終わりに調整
+        const nextPeriod = responseText.indexOf('。', index);
+        const nextNewline = responseText.indexOf('\n', index);
+        if (nextPeriod !== -1) contextEnd = Math.min(end, nextPeriod + 1);
+        if (nextNewline !== -1 && nextNewline < contextEnd) contextEnd = nextNewline;
+        
+        const contextText = responseText.substring(contextStart, contextEnd).trim();
+        if (contextText) {
+          contextTexts.push(contextText);
+        }
       }
-    };
+      
+      // 重複を削除して結合
+      const uniqueContexts = [...new Set(contextTexts)];
+      const combinedContext = uniqueContexts.join('\n\n');
+
+      sources.push({
+        content: combinedContext || `このドキュメントからの引用 [${i}]`,
+        uri: `s3://${process.env.AWS_S3_BUCKET}/${fileKey}`,
+        type: 'direct_s3' as const,
+        title: `${fileName || fileKey} - 引用[${i}]`,
+        citationNumber: i,
+        metadata: {
+          fileSize: fileSize,
+          fileType: isPDF ? 'pdf' : (isImage ? 'image' : 'text'),
+          isTruncated: isTruncated,
+          bucket: process.env.AWS_S3_BUCKET,
+          key: fileKey,
+          citationContext: combinedContext,
+          occurrences: matches.length
+        }
+      });
+    }
 
     logStep('📋 レスポンス準備完了');
 
@@ -249,14 +305,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       content: responseBody.content[0].text,
-      sources: [source],
+      sources: sources,
       processLog: processLog,
       metadata: {
         modelId: process.env.BEDROCK_MODEL_ID_SONNET_4,
         fileKey: fileKey,
         fileName: fileName,
         processingTime: totalTime,
-        isTruncated: isTruncated
+        isTruncated: isTruncated,
+        citationCount: sources.length
       }
     });
 
