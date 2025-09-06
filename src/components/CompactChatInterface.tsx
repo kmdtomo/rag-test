@@ -17,6 +17,10 @@ interface Source {
   citationNumber?: number;
   pageNumber?: number;
   metadata?: any;
+  // 新しいフィールド（自律型検索用）
+  is_primary?: boolean;
+  source_type?: 'official' | 'academic' | 'news' | 'blog' | 'social' | 'unknown';
+  language?: string;
 }
 
 interface Message {
@@ -52,7 +56,7 @@ export default function CompactChatInterface({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'sonnet35' | 'sonnet4'>('sonnet4');
   const [selectedApi, setSelectedApi] = useState<'rag-optimized' | 'rag-integrated'>('rag-integrated');
-  const [selectedAgentApi, setSelectedAgentApi] = useState<'agent-bedrock' | 'agent-enhanced'>('agent-enhanced');
+  const [selectedAgentApi, setSelectedAgentApi] = useState<'agent-bedrock' | 'agent-enhanced' | 'agent-autonomous'>('agent-autonomous');
   const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
   const [currentSearchResult, setCurrentSearchResult] = useState<SearchResult | undefined>(undefined);
   const [lastEnterTime, setLastEnterTime] = useState<number>(0);
@@ -97,6 +101,10 @@ export default function CompactChatInterface({
         : (!isAgentChat 
           ? `/api/${selectedApi}` 
           : `/api/${selectedAgentApi}`);
+      
+      // デバッグログ
+      console.log('Selected Agent API:', selectedAgentApi);
+      console.log('Final endpoint:', endpoint);
       
       // Build request body based on API type
       const requestBody: any = {
@@ -255,6 +263,16 @@ export default function CompactChatInterface({
                       }`}
                     >
                       最適化
+                    </button>
+                    <button
+                      onClick={() => setSelectedAgentApi('agent-autonomous')}
+                      className={`px-2 py-0.5 text-xs rounded transition-all ${
+                        selectedAgentApi === 'agent-autonomous'
+                          ? 'bg-white text-blue-600 shadow-sm font-medium'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      最適化2
                     </button>
                   </>
                 )}

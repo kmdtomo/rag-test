@@ -12,6 +12,11 @@ interface Source {
   citationNumber?: number;
   pageNumber?: number;
   metadata?: any;
+  // 新しいフィールド（自律型検索用）
+  is_primary?: boolean;
+  source_type?: 'official' | 'academic' | 'news' | 'blog' | 'social' | 'unknown';
+  language?: string;
+  query?: string;
 }
 
 interface SourcePanelProps {
@@ -130,22 +135,78 @@ export function SourcePanel({ sources, selectedSourceIndex, onClose }: SourcePan
               </div>
             )}
             
-            {source.score && (
-              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs text-gray-500">関連度スコア</span>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-500"
-                      style={{ width: `${source.score * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">
-                    {source.score.toFixed(3)}
+            {/* 新しい情報表示エリア */}
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2 mb-2">
+                {/* 一次/二次情報バッジ */}
+                {source.is_primary !== undefined && (
+                  <span className={`inline-flex items-center px-2 py-1 text-xs rounded-full ${
+                    source.is_primary 
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                      : 'bg-gray-100 text-gray-600 border border-gray-300'
+                  }`}>
+                    {source.is_primary ? '🏛️ 一次情報' : '📄 二次情報'}
                   </span>
-                </div>
+                )}
+                
+                {/* 情報源タイプバッジ */}
+                {source.source_type && (
+                  <span className={`inline-flex items-center px-2 py-1 text-xs rounded-full ${
+                    source.source_type === 'official' ? 'bg-blue-100 text-blue-800' :
+                    source.source_type === 'academic' ? 'bg-purple-100 text-purple-800' :
+                    source.source_type === 'news' ? 'bg-green-100 text-green-800' :
+                    source.source_type === 'blog' ? 'bg-yellow-100 text-yellow-800' :
+                    source.source_type === 'social' ? 'bg-pink-100 text-pink-800' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {source.source_type === 'official' ? '🏢 公式' :
+                     source.source_type === 'academic' ? '🎓 学術' :
+                     source.source_type === 'news' ? '📰 ニュース' :
+                     source.source_type === 'blog' ? '📝 ブログ' :
+                     source.source_type === 'social' ? '💬 SNS' :
+                     '❓ 不明'}
+                  </span>
+                )}
+                
+                {/* 言語バッジ */}
+                {source.language && (
+                  <span className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                    🌐 {source.language.toUpperCase()}
+                  </span>
+                )}
               </div>
-            )}
+              
+              {/* 検索クエリ情報 */}
+              {source.query && (
+                <div className="text-xs text-gray-500 mb-2">
+                  <span className="font-medium">検索クエリ:</span> {source.query}
+                </div>
+              )}
+              
+              {/* スコア表示 */}
+              {source.score && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    {source.is_primary !== undefined ? '信頼性スコア' : '関連度スコア'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          source.is_primary !== undefined 
+                            ? 'bg-gradient-to-r from-amber-400 to-amber-600'
+                            : 'bg-gradient-to-r from-blue-400 to-blue-600'
+                        }`}
+                        style={{ width: `${source.score * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700">
+                      {source.score.toFixed(3)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
