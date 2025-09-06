@@ -40,7 +40,14 @@ interface ChatInterfaceProps {
   apiEndpoint?: string;
   placeholder?: string;
   isAgentChat?: boolean;
-  selectedFile?: any; // Direct S3用の選択ファイル
+  selectedFile?: {key: string; name: string} | null; // 選択されたファイル（Direct S3/RAGフィルタ共用）
+  title?: string;
+  showSources?: boolean;
+  enableOptimizationToggle?: boolean;
+  enableWebSearch?: boolean;
+  onSourcePanelToggle?: () => void;
+  sourceCount?: number;
+  className?: string;
 }
 
 export default function CompactChatInterface({ 
@@ -49,7 +56,14 @@ export default function CompactChatInterface({
   apiEndpoint = '/api/chat', 
   placeholder = 'メッセージを入力...', 
   isAgentChat = false,
-  selectedFile
+  selectedFile,
+  title,
+  showSources,
+  enableOptimizationToggle,
+  enableWebSearch,
+  onSourcePanelToggle,
+  sourceCount,
+  className
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -121,6 +135,16 @@ export default function CompactChatInterface({
       // Add API-specific parameters
       if (!isAgentChat && selectedApi === 'rag-optimized') {
         requestBody.enableOptimizations = true;
+        // RAG最適化版にもファイル選択を追加
+        if (selectedFile) {
+          requestBody.selectedFileKey = selectedFile.key;
+        }
+      }
+      
+      // apiEndpointが直接指定されている場合もファイル選択を追加
+      if (apiEndpoint === '/api/rag-optimized' && selectedFile) {
+        requestBody.enableOptimizations = true;
+        requestBody.selectedFileKey = selectedFile.key;
       }
       
       const response = await fetch(endpoint, {

@@ -52,46 +52,106 @@ ${searchResults}
 回答:`;
 }
 
-// インテリジェントなクエリ分解用のプロンプト
-const INTELLIGENT_QUERY_DECOMPOSITION_PROMPT = `質問を分析し、Knowledge Base検索に最適な3つの検索クエリを生成してください。
+// Sonnet4による高度なRAG検索計画用のプロンプト
+const ADVANCED_RAG_PLANNING_PROMPT = `あなたは高度なRAG検索戦略を立案するエキスパートです。ユーザーの質問を深く分析し、Knowledge Baseから最適な情報を取得するための検索計画を作成してください。
 
-重要なルール：
-1. 単語ではなく、完全な文や意味のあるフレーズで
-2. 各クエリは異なる観点から（概念/実装/応用など）
-3. 元の質問の意図とコンテキストを保持
-4. 専門用語はそのまま保持
+【質問の分析】
+ユーザーの質問: {question}
 
-質問: {question}
+【必須：質問の要素分解と分析】
+1. **質問の構成要素**
+   - 質問に含まれる個別の要求・トピックを全て識別
+   - 各要素に必要な情報の種類を特定（概念、実装、事例、トラブルシューティング等）
+   - 要素間の関係性と優先度を評価
 
-出力形式（JSON）:
-[
-  {"query": "概念的な観点からの検索文", "weight": 1.0},
-  {"query": "実装観点からの検索文", "weight": 0.8},
-  {"query": "応用・ベストプラクティス観点", "weight": 0.6}
-]`;
+2. **検索戦略の設計**
+   - 必要な検索クエリ数は質問の複雑さに応じて柔軟に決定（1〜10個）
+   - 各クエリは特定の情報ニーズに対応
+   - クエリ間の重複を最小化し、カバレッジを最大化
+
+3. **検索タイプの選択**
+   - SEMANTIC: 概念的な理解、類似性検索に適している
+   - HYBRID: キーワードと意味の両方が重要な場合
+
+【重要な指針】
+- 単純な質問 → 1-2個の焦点を絞ったクエリ
+- 複雑な質問 → 3-5個の多角的なクエリ
+- 多面的な質問 → 5個以上の包括的なクエリ
+
+【出力形式（JSON）】
+{
+  "analysis": {
+    "complexity": "simple/moderate/complex",
+    "topics": ["識別されたトピック1", "トピック2"],
+    "information_needs": ["必要な情報タイプ1", "情報タイプ2"]
+  },
+  "queries": [
+    {
+      "query": "検索クエリ（完全な文または意味のあるフレーズ）",
+      "weight": 1.0,
+      "searchType": "SEMANTIC",
+      "purpose": "このクエリで何を探すか",
+      "target_topic": "主要トピック"
+    }
+  ],
+  "strategy": "全体的な検索戦略の説明",
+  "expected_coverage": "この計画でカバーできる情報の範囲"
+}`;
 
 interface RetrievalConfig {
   numberOfResults?: number;
   searchType?: 'HYBRID' | 'SEMANTIC';
   overrideSearchType?: 'SEMANTIC' | 'HYBRID';
+  fileFilter?: string; // S3ファイルキーでフィルタリング
 }
 
 interface EnhancedQuery {
   query: string;
   weight: number;
+  searchType?: 'HYBRID' | 'SEMANTIC';
+  purpose?: string;
+  target_topic?: string;
 }
 
-// インテリジェントなクエリ分解関数
-async function decomposeQueryIntelligently(question: string, addLog: (msg: string) => void): Promise<EnhancedQuery[]> {
+// Sonnet4による高度なクエリ分析と検索計画
+async function planAdvancedRAGSearch(
+  question: string, 
+  model: string,
+  addLog: (msg: string) => void
+): Promise<{
+  analysis: {
+    complexity: 'simple' | 'moderate' | 'complex';
+    topics: string[];
+    information_needs: string[];
+  };
+  queries: Array<{
+    query: string;
+    weight: number;
+    searchType: 'SEMANTIC' | 'HYBRID';
+    purpose: string;
+    target_topic: string;
+  }>;
+  strategy: string;
+  expected_coverage: string;
+}> {
   try {
-    addLog('\n🤔 質問を分析して、最適な検索クエリを生成中...');
-    const prompt = INTELLIGENT_QUERY_DECOMPOSITION_PROMPT.replace('{question}', question);
+    addLog('\n🧠 Sonnet4による高度な検索計画立案');
+    addLog('─'.repeat(40));
+    
+    const prompt = ADVANCED_RAG_PLANNING_PROMPT.replace('{question}', question);
+    
+    // モデルの選択（デフォルトはsonnet4）
+    const modelMap = {
+      'sonnet35': process.env.BEDROCK_MODEL_ID_SONNET_35 || 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      'sonnet4': process.env.BEDROCK_MODEL_ID_SONNET_4 || 'apac.anthropic.claude-sonnet-4-20250514-v1:0'
+    };
+    const modelId = modelMap[model as keyof typeof modelMap] || modelMap['sonnet4'];
     
     const command = new InvokeModelCommand({
-      modelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+      modelId: modelId,
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 512,
+        max_tokens: 1500,
         temperature: 0,
         messages: [{
           role: "user",
@@ -102,19 +162,105 @@ async function decomposeQueryIntelligently(question: string, addLog: (msg: strin
 
     const response = await bedrockClient.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+    const text = responseBody.content[0].text.trim();
+    
+    addLog(`\n🤖 Sonnet4の分析結果:`);
+    addLog(text.substring(0, 400) + '...');
+    
+    // JSONをパース
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const plan = JSON.parse(jsonMatch[0]);
+      
+      addLog(`\n✅ 検索計画の概要:`);
+      addLog(`  ・複雑さ: ${plan.analysis.complexity}`);
+      addLog(`  ・識別されたトピック: ${plan.analysis.topics.join(', ')}`);
+      addLog(`  ・検索クエリ数: ${plan.queries.length}個`);
+      
+      addLog('\n🎯 生成された検索クエリ:');
+      plan.queries.forEach((q: any, i: number) => {
+        addLog(`  ${i + 1}. ${q.query}`);
+        addLog(`     [重要度: ${q.weight}, タイプ: ${q.searchType}, 目的: ${q.purpose}]`);
+      });
+      
+      return plan;
+    }
+    
+    throw new Error('Failed to parse RAG planning JSON');
+    
+  } catch (error) {
+    console.error('❌ Advanced RAG planning failed:', error);
+    addLog('⚠️ 高度な検索計画に失敗 - シンプルモードにフォールバック');
+    
+    // フォールバック：Haikuによる簡易分解
+    return await fallbackToHaikuDecomposition(question, addLog);
+  }
+}
+
+// Haikuによるフォールバック分解（コスト削減用）
+async function fallbackToHaikuDecomposition(
+  question: string,
+  addLog: (msg: string) => void
+): Promise<any> {
+  try {
+    addLog('\n💡 Haikuによる簡易クエリ分解を実行');
+    
+    const simplePrompt = `質問を3つの検索クエリに分解してください。
+質問: ${question}
+
+JSON形式で出力:
+[
+  {"query": "検索クエリ1", "weight": 1.0, "searchType": "SEMANTIC", "purpose": "基本情報", "target_topic": "メイン"},
+  {"query": "検索クエリ2", "weight": 0.8, "searchType": "HYBRID", "purpose": "詳細情報", "target_topic": "詳細"},
+  {"query": "検索クエリ3", "weight": 0.6, "searchType": "SEMANTIC", "purpose": "関連情報", "target_topic": "関連"}
+]`;
+    
+    const command = new InvokeModelCommand({
+      modelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 512,
+        temperature: 0,
+        messages: [{
+          role: "user",
+          content: simplePrompt
+        }]
+      })
+    });
+
+    const response = await bedrockClient.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
     const queries = JSON.parse(responseBody.content[0].text);
     
-    addLog('🎯 生成された検索クエリ:');
-    queries.forEach((q: EnhancedQuery, i: number) => {
-      addLog(`  ${i + 1}. ${q.query} [重要度: ${q.weight}]`);
-    });
-    
-    return queries;
+    return {
+      analysis: {
+        complexity: 'simple',
+        topics: ['一般'],
+        information_needs: ['基本情報']
+      },
+      queries: queries,
+      strategy: 'Haikuによる簡易分解',
+      expected_coverage: '基本的な情報カバレッジ'
+    };
   } catch (error) {
-    console.error('❌ Query decomposition failed:', error);
-    addLog('⚠️ クエリ分解に失敗しました。元の質問をそのまま使用します');
-    // フォールバック：元の質問をそのまま使用
-    return [{ query: question, weight: 1.0 }];
+    // 最終フォールバック
+    addLog('⚠️ 全ての分解方法が失敗 - 元の質問を使用');
+    return {
+      analysis: {
+        complexity: 'simple',
+        topics: ['一般'],
+        information_needs: ['基本情報']
+      },
+      queries: [{
+        query: question,
+        weight: 1.0,
+        searchType: 'SEMANTIC',
+        purpose: '直接検索',
+        target_topic: 'メイン'
+      }],
+      strategy: 'フォールバック',
+      expected_coverage: '基本検索'
+    };
   }
 }
 
@@ -163,7 +309,8 @@ async function performOptimizedRetrieval(
   const {
     numberOfResults = 10,
     searchType = 'HYBRID',
-    overrideSearchType
+    overrideSearchType,
+    fileFilter
   } = config;
 
   // コンテキストを保持したクエリ
@@ -171,22 +318,75 @@ async function performOptimizedRetrieval(
   
   addLog(`  🔍 検索中: "${query}"`);
   addLog(`     設定: 最大${numberOfResults}件取得、${searchType === 'HYBRID' ? 'ハイブリッド' : 'セマンティック'}検索`);
+  if (fileFilter) {
+    addLog(`     📁 ファイルフィルタ: ${fileFilter}`);
+  }
+
+  // 検索設定を構築
+  const retrievalConfiguration: any = {
+    vectorSearchConfiguration: {
+      numberOfResults,
+      overrideSearchType: overrideSearchType || searchType as any
+    }
+  };
+
+  // ファイルフィルタが指定されている場合
+  if (fileFilter) {
+    const s3Uri = `s3://${process.env.AWS_S3_BUCKET}/${fileFilter}`;
+    addLog(`     🔍 ファイルフィルタ適用: ${s3Uri}`);
+    retrievalConfiguration.vectorSearchConfiguration.filter = {
+      equals: {
+        key: "x-amz-bedrock-kb-source-uri",
+        value: s3Uri
+      }
+    };
+  }
 
   const retrieveCommand = new RetrieveCommand({
     knowledgeBaseId: process.env.BEDROCK_KNOWLEDGE_BASE_ID!,
     retrievalQuery: {
       text: contextualQuery
     },
-    retrievalConfiguration: {
-      vectorSearchConfiguration: {
-        numberOfResults,
-        overrideSearchType: overrideSearchType || searchType as any
-      }
-    }
+    retrievalConfiguration
   });
 
   const response = await agentClient.send(retrieveCommand);
   const results = response.retrievalResults || [];
+  
+  // デバッグ: 最初の結果のメタデータを確認
+  if (results.length > 0 && results[0].metadata) {
+    addLog(`     📋 メタデータ例: ${JSON.stringify(results[0].metadata).substring(0, 200)}...`);
+  }
+  
+  // ファイルフィルタ使用時に結果が0件の場合、全体検索してメタデータを確認
+  if (fileFilter && results.length === 0) {
+    addLog(`     ⚠️ ファイルフィルタで結果が0件 - デバッグのため全体検索を実行`);
+    const debugCommand = new RetrieveCommand({
+      knowledgeBaseId: process.env.BEDROCK_KNOWLEDGE_BASE_ID!,
+      retrievalQuery: {
+        text: contextualQuery
+      },
+      retrievalConfiguration: {
+        vectorSearchConfiguration: {
+          numberOfResults: 3,
+          overrideSearchType: overrideSearchType || searchType as any
+        }
+      }
+    });
+    
+    const debugResponse = await agentClient.send(debugCommand);
+    const debugResults = debugResponse.retrievalResults || [];
+    
+    if (debugResults.length > 0) {
+      addLog(`     🔍 デバッグ: 全体検索では${debugResults.length}件の結果`);
+      debugResults.forEach((result, idx) => {
+        if (result.metadata) {
+          addLog(`     📋 結果${idx + 1}のメタデータ: ${JSON.stringify(result.metadata).substring(0, 150)}...`);
+        }
+      });
+    }
+  }
+  
   addLog(`     ✅ ${results.length}件の結果を取得`);
   
   return results;
@@ -213,7 +413,7 @@ export async function POST(request: NextRequest) {
   
   try {
     logStep('リクエスト受信');
-    const { message, model, enableOptimizations = true } = await request.json();
+    const { message, model, enableOptimizations = true, selectedFileKey } = await request.json();
 
     if (!message) {
       return NextResponse.json(
@@ -230,6 +430,12 @@ export async function POST(request: NextRequest) {
     addLog(`⚙️  最適化機能: ${enableOptimizations ? '✅ 有効' : '❌ 無効'}`);
     addLog(`📚 ナレッジベースID: ${process.env.BEDROCK_KNOWLEDGE_BASE_ID}`);
     addLog(`🌐 AWSリージョン: ${process.env.AWS_REGION}`);
+    if (selectedFileKey) {
+      addLog(`📁 選択ファイル: ${selectedFileKey}`);
+      addLog(`🔍 検索モード: ファイル限定`);
+    } else {
+      addLog(`🔍 検索モード: Knowledge Base全体`);
+    }
     addLog(`${'─'.repeat(40)}\n`);
     
     logStep('初期設定完了');
@@ -238,13 +444,20 @@ export async function POST(request: NextRequest) {
     let searchQueries: string[] = [];
 
     if (enableOptimizations) {
-      // Step 1: インテリジェントなクエリ分解
-      addLog('\n💡 ステップ1: 質問の分析と分解');
+      // Step 1: 高度な検索計画の立案
+      addLog('\n💡 ステップ1: Sonnet4による高度な検索計画');
       addLog(`${'─'.repeat(40)}`);
-      logStep('クエリ分解開始');
-      const enhancedQueries = await decomposeQueryIntelligently(message, addLog);
-      logStep('クエリ分解完了');
+      logStep('検索計画立案開始');
+      const searchPlan = await planAdvancedRAGSearch(message, model, addLog);
+      logStep('検索計画立案完了');
+      
+      const enhancedQueries = searchPlan.queries;
       searchQueries = enhancedQueries.map(eq => eq.query);
+      
+      // 複雑さに応じて処理を調整
+      if (searchPlan.analysis.complexity === 'simple' && enhancedQueries.length <= 2) {
+        addLog('\n💚 シンプルな質問と判断 - 高速処理モード');
+      }
 
       // Step 2: 並列検索（コンテキスト保持）
       addLog('\n🚀 ステップ2: 並列検索の実行');
@@ -256,8 +469,10 @@ export async function POST(request: NextRequest) {
           eq.query,
           message,  // 元の質問を渡す
           {
-            numberOfResults: Math.max(5, 10 - index * 2), // 徴々に減らす
-            searchType: index === 0 ? 'SEMANTIC' : 'HYBRID'
+            numberOfResults: Math.max(5, Math.floor(15 / enhancedQueries.length) + 3), // クエリ数に応じて調整
+            searchType: eq.searchType || 'HYBRID',
+            overrideSearchType: eq.searchType,
+            fileFilter: selectedFileKey // ファイルフィルタを追加
           },
           addLog
         )
@@ -305,9 +520,10 @@ export async function POST(request: NextRequest) {
       // 調整されたスコアでソート
       allResults.sort((a, b) => (b.adjustedScore || 0) - (a.adjustedScore || 0));
       
-      // 上位15件を選択
+      // クエリ数に応じて結果数を調整（多いクエリ = より多様な結果）
+      const maxResults = Math.min(20, 10 + enhancedQueries.length * 2);
       const beforeTrim = allResults.length;
-      allResults = allResults.slice(0, 15);
+      allResults = allResults.slice(0, maxResults);
       addLog(`\n  ✂️ 上位${allResults.length}件に絞り込み（元々${beforeTrim}件）`);
       
       // スコア分布を表示
@@ -329,7 +545,8 @@ export async function POST(request: NextRequest) {
       searchQueries = [message];
       allResults = await performOptimizedRetrieval(message, message, {
         numberOfResults: 10,
-        searchType: 'SEMANTIC'
+        searchType: 'SEMANTIC',
+        fileFilter: selectedFileKey // ファイルフィルタを追加
       }, addLog);
       logStep(`標準検索完了: ${allResults.length}件の結果`);
     }
